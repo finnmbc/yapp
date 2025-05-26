@@ -35,11 +35,11 @@ function updateRoomsForAll() {
   io.emit('rooms_update', summary);
 }
 
-// Shuffle alle Nutzer zentral
+// Nutzer auf Räume verteilen
 function shuffleUsers() {
   const allUsers = Array.from(io.sockets.sockets.keys());
 
-  // Mischen (Fisher-Yates)
+  // Nutzer mischen (Fisher-Yates)
   for (let i = allUsers.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
@@ -47,7 +47,6 @@ function shuffleUsers() {
 
   rooms = [];
 
-  // Neu auf Räume verteilen
   allUsers.forEach(socketId => {
     let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
     if (!room) {
@@ -57,7 +56,7 @@ function shuffleUsers() {
     room.users.push(socketId);
   });
 
-  // Alle Nutzer aus alten Räumen entfernen
+  // Nutzer aus alten Räumen entfernen
   io.sockets.sockets.forEach(socket => {
     const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
     socketRooms.forEach(rId => socket.leave(rId));
@@ -80,7 +79,7 @@ function shuffleUsers() {
   updateRoomsForAll();
 }
 
-// Neuen Nutzer einem Raum zuweisen (ohne globales Shuffle)
+// Nutzer bei Verbindung einem Raum zuweisen
 function assignUserToRoom(socket) {
   let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
   if (!room) {
@@ -99,10 +98,10 @@ function assignUserToRoom(socket) {
   updateRoomsForAll();
 }
 
-// Statische Dateien
+// Statische Dateien bereitstellen
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Socket-Handling
+// Socket-Verbindung
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
   cleanupRooms();
@@ -135,11 +134,14 @@ io.on('connection', (socket) => {
   });
 });
 
-// Shuffle alle 2 Minuten
+// Automatischer Shuffle alle 2 Minuten
 setInterval(() => {
   console.log('Shuffle users...');
   shuffleUsers();
   nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
+
+  // 🔥 Alle Clients zentral zum Reload auffordern
+  io.emit('trigger_reload');
 }, RESHUFFLE_INTERVAL_MS);
 
 // Server starten

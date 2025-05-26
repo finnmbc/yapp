@@ -130,29 +130,19 @@
     const countdownEl = document.getElementById('countdown');
 
     let nextShuffleTimestamp = null;
+    let countdownInterval = null;
     let hasReloaded = false;
-    let countdownStarted = false;
 
     socket.on('joined_room', data => {
       nextShuffleTimestamp = data.nextShuffleTimestamp;
 
       // Countdown nur einmal starten
-      if (!countdownStarted && nextShuffleTimestamp) {
-        countdownStarted = true;
-
-        const countdownInterval = setInterval(() => {
-          if (!nextShuffleTimestamp || hasReloaded) return;
-
+      if (!countdownInterval && nextShuffleTimestamp) {
+        countdownInterval = setInterval(() => {
           const remaining = Math.max(0, nextShuffleTimestamp - Date.now());
           const mins = Math.floor(remaining / 60000);
           const secs = Math.floor((remaining % 60000) / 1000);
           countdownEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-
-          if (remaining <= 1000 && !hasReloaded) {
-            hasReloaded = true;
-            clearInterval(countdownInterval);
-            location.reload(); // Direkt neu laden
-          }
         }, 1000);
       }
     });
@@ -175,6 +165,13 @@
       item.textContent = `${data.user}: ${data.text}`;
       messages.appendChild(item);
       messages.scrollTop = messages.scrollHeight;
+    });
+
+    socket.on('trigger_reload', () => {
+      if (!hasReloaded) {
+        hasReloaded = true;
+        location.reload();
+      }
     });
 
     form.addEventListener('submit', e => {
