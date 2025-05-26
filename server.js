@@ -8,8 +8,8 @@ const server = http.createServer(app);
 const io = socketIo(server);
 
 const MAX_USERS_PER_ROOM = 4;
-const YAPPA_EXTRA_SECONDS = 23;
-const IMAGE_DURATION_SECONDS = 10; // z. B. 3 Minuten Anschauzeit
+const YAPPA_EXTRA_SECONDS = 23;           // Nachbesprechzeit
+const IMAGE_DURATION_SECONDS = 10;       // Dauer zur Bildbetrachtung
 
 let rooms = [];
 
@@ -20,12 +20,13 @@ function getRandomImageUrl() {
 }
 
 function createRoom() {
+  const now = Date.now();
   return {
     id: 'room_' + Math.random().toString(36).substr(2, 9),
     users: [],
     imageUrl: getRandomImageUrl(),
-    imageStart: Date.now(),
-    shuffleAt: null
+    imageStart: now,
+    shuffleAt: now + 1000 * (IMAGE_DURATION_SECONDS + YAPPA_EXTRA_SECONDS)
   };
 }
 
@@ -42,7 +43,6 @@ function assignUserToRoom(socket) {
   let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
   if (!room) {
     room = createRoom();
-    room.shuffleAt = room.imageStart + 1000 * (IMAGE_DURATION_SECONDS + YAPPA_EXTRA_SECONDS);
     rooms.push(room);
   }
 
@@ -62,6 +62,7 @@ function assignUserToRoom(socket) {
 function shuffleUsers() {
   const allUsers = Array.from(io.sockets.sockets.keys());
 
+  // Shuffle User
   for (let i = allUsers.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
@@ -73,17 +74,17 @@ function shuffleUsers() {
   while (i < allUsers.length) {
     const room = createRoom();
     room.users = allUsers.slice(i, i + MAX_USERS_PER_ROOM);
-    room.imageStart = Date.now();
-    room.shuffleAt = room.imageStart + 1000 * (IMAGE_DURATION_SECONDS + YAPPA_EXTRA_SECONDS);
     rooms.push(room);
     i += MAX_USERS_PER_ROOM;
   }
 
+  // Alle Nutzer aus alten Räumen entfernen
   io.sockets.sockets.forEach(socket => {
     const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
     socketRooms.forEach(rId => socket.leave(rId));
   });
 
+  // Räume zuweisen
   rooms.forEach(room => {
     room.users.forEach(socketId => {
       const socket = io.sockets.sockets.get(socketId);
@@ -102,7 +103,7 @@ function shuffleUsers() {
   updateRoomsForAll();
 }
 
-// 🧠 Raum-Zeit überwachen
+// ⏳ Überwachung & Shuffle-Auslösung
 function monitorShuffleTimers() {
   setInterval(() => {
     const now = Date.now();
@@ -116,6 +117,7 @@ function monitorShuffleTimers() {
   }, 1000);
 }
 
+// 📁 Static
 app.use(express.static(path.join(__dirname, 'public')));
 
 io.on('connection', (socket) => {
@@ -139,7 +141,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Start
+// 🚀 Start
 monitorShuffleTimers();
 
 const PORT = process.env.PORT || 3000;

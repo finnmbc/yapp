@@ -74,16 +74,16 @@
       position: relative;
     }
 
-    #videoPrompt {
+    #imagePrompt {
       margin-bottom: 1rem;
-      text-align: center;
     }
 
-    #videoPrompt img {
+    #imagePrompt img {
       width: 100%;
-      max-height: 60vh;
+      height: 60vh;
       object-fit: cover;
       border-radius: 10px;
+      display: block;
     }
 
     #messages {
@@ -159,7 +159,9 @@
   </div>
 
   <div class="main">
-    <div id="videoPrompt">🖼️ Bild wird geladen...</div>
+    <div id="imagePrompt">
+      <img id="roomImage" src="" alt="Zufallsbild wird geladen..." />
+    </div>
     <div id="messages"></div>
     <form id="form">
       <input id="input" autocomplete="off" placeholder="Nachricht schreiben..." />
@@ -169,10 +171,10 @@
   </div>
 
   <div class="video-column">
-    <!-- Werbeblock o.ä. -->
+    <!-- Platz für Werbung o.Ä. -->
   </div>
 
-  <div class="overlay" id="overlay">Neuer Raum wird geladen...</div>
+  <div class="overlay" id="overlay">Neuer Raum wird geladen…</div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -183,7 +185,7 @@
     const roomList = document.getElementById('roomList');
     const countdownEl = document.getElementById('countdown');
     const overlay = document.getElementById('overlay');
-    const videoPrompt = document.getElementById('videoPrompt');
+    const roomImage = document.getElementById('roomImage');
 
     let countdownInterval = null;
     let hasReloaded = false;
@@ -192,19 +194,17 @@
     socket.on('joined_room', data => {
       currentRoomId = data.roomId || null;
 
-      // Countdown anzeigen
-      if (data.shuffleAt && !countdownInterval) {
-        countdownInterval = setInterval(() => {
-          const remaining = Math.max(0, data.shuffleAt - Date.now());
-          const mins = Math.floor(remaining / 60000);
-          const secs = Math.floor((remaining % 60000) / 1000);
-          countdownEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-        }, 1000);
-      }
+      if (data.imageUrl && data.shuffleAt) {
+        roomImage.src = data.imageUrl;
 
-      if (data.imageUrl) {
-        const html = `<img src="${data.imageUrl}" alt="Zufallsbild" loading="lazy" />`;
-        videoPrompt.innerHTML = html;
+        if (!countdownInterval) {
+          countdownInterval = setInterval(() => {
+            const remaining = Math.max(0, data.shuffleAt - Date.now());
+            const mins = Math.floor(remaining / 60000);
+            const secs = Math.floor((remaining % 60000) / 1000);
+            countdownEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+          }, 1000);
+        }
       }
     });
 
