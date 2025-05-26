@@ -134,15 +134,30 @@ io.on('connection', (socket) => {
   });
 });
 
-// Automatischer Shuffle alle 2 Minuten
-setInterval(() => {
-  console.log('Shuffle users...');
-  shuffleUsers();
-  nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
+// ⏱ Genaues Timing mit rekursivem setTimeout
+function scheduleNextShuffle() {
+  const now = Date.now();
+  const delay = nextShuffleTimestamp - now;
 
-  // 🔥 Alle Clients zentral zum Reload auffordern
-  io.emit('trigger_reload');
-}, RESHUFFLE_INTERVAL_MS);
+  console.log(`Nächstes Shuffle in ${Math.round(delay / 1000)} Sekunden.`);
+
+  setTimeout(() => {
+    console.log('Shuffle users...');
+    shuffleUsers();
+
+    // Neues Ziel-Zeitfenster berechnen
+    nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
+
+    // Clients zentral zum Reload auffordern
+    io.emit('trigger_reload');
+
+    // Nächsten Shuffle planen
+    scheduleNextShuffle();
+  }, delay);
+}
+
+// Initial starten
+scheduleNextShuffle();
 
 // Server starten
 const PORT = process.env.PORT || 3000;
