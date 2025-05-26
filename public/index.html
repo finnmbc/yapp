@@ -21,7 +21,6 @@
         grid-template-columns: 1fr;
         grid-template-rows: auto 1fr auto;
       }
-
       .sidebar, .video-column {
         display: none;
       }
@@ -168,7 +167,7 @@
   </div>
 
   <div class="video-column">
-    <!-- Platzhalter für spätere Inhalte (z. B. Werbung) -->
+    <!-- z. B. Werbung oder zukünftige Features -->
   </div>
 
   <div class="overlay" id="overlay">Neuer zufälliger Raum wird geladen...</div>
@@ -191,8 +190,13 @@
 
     socket.on('joined_room', data => {
       nextShuffleTimestamp = data.nextShuffleTimestamp;
-      if (data.roomId) {
-        currentRoomId = data.roomId;
+      currentRoomId = data.roomId || null;
+
+      if (data.videoId && data.videoStart) {
+        const elapsedSeconds = Math.floor((Date.now() - data.videoStart) / 1000);
+        const embedUrl = `https://www.youtube.com/embed/${data.videoId}?start=${elapsedSeconds}&autoplay=1&mute=1&playsinline=1&rel=0`;
+        const html = `<iframe src="${embedUrl}" frameborder="0" allow="autoplay" allowfullscreen></iframe>`;
+        videoPrompt.innerHTML = html;
       }
 
       if (!countdownInterval && nextShuffleTimestamp) {
@@ -226,13 +230,6 @@
       item.textContent = `${data.user}: ${data.text}`;
       messages.appendChild(item);
       messages.scrollTop = messages.scrollHeight;
-    });
-
-    socket.on('video_prompt', ({ videoId }) => {
-      const html = `
-        <iframe src="https://www.youtube.com/embed/${videoId}" 
-          frameborder="0" allowfullscreen></iframe>`;
-      videoPrompt.innerHTML = html;
     });
 
     socket.on('trigger_reload', () => {

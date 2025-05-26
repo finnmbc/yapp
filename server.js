@@ -13,13 +13,13 @@ const RESHUFFLE_INTERVAL_MS = (1 * 60 + 3) * 1000;
 let rooms = [];
 let nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
 
-// Liste mit normalen YouTube-Video-IDs
+// Liste mit YouTube-Video-IDs
 const videoIds = [
   "dQw4w9WgXcQ", // Rickroll
   "kJQP7kiw5Fk", // Despacito
   "3JZ_D3ELwOQ", // Nyan Cat
-  "Zi_XLOBDo_Y", // Michael Jackson - Billie Jean
-  "RgKAFK5djSk"  // Wiz Khalifa - See You Again
+  "Zi_XLOBDo_Y", // Billie Jean
+  "RgKAFK5djSk"  // See You Again
 ];
 
 function getRandomVideoId(exclude = []) {
@@ -31,7 +31,8 @@ function createRoom() {
   return {
     id: 'room_' + Math.random().toString(36).substr(2, 9),
     users: [],
-    videoId: null
+    videoId: null,
+    videoStart: null
   };
 }
 
@@ -49,6 +50,7 @@ function assignUserToRoom(socket) {
   if (!room) {
     room = createRoom();
     room.videoId = getRandomVideoId();
+    room.videoStart = Date.now();
     rooms.push(room);
   }
 
@@ -57,12 +59,10 @@ function assignUserToRoom(socket) {
 
   socket.emit('joined_room', {
     roomId: room.id,
-    nextShuffleTimestamp
+    nextShuffleTimestamp,
+    videoId: room.videoId,
+    videoStart: room.videoStart
   });
-
-  if (room.videoId) {
-    socket.emit('video_prompt', { videoId: room.videoId });
-  }
 
   updateRoomsForAll();
 }
@@ -70,6 +70,7 @@ function assignUserToRoom(socket) {
 function shuffleUsers() {
   const allUsers = Array.from(io.sockets.sockets.keys());
 
+  // Zufällige Reihenfolge (Fisher-Yates)
   for (let i = allUsers.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
@@ -83,6 +84,7 @@ function shuffleUsers() {
     const room = createRoom();
     room.users = allUsers.slice(i, i + MAX_USERS_PER_ROOM);
     room.videoId = getRandomVideoId(assignedVideoIds);
+    room.videoStart = Date.now();
     assignedVideoIds.push(room.videoId);
     rooms.push(room);
     i += MAX_USERS_PER_ROOM;
@@ -100,12 +102,10 @@ function shuffleUsers() {
         socket.join(room.id);
         socket.emit('joined_room', {
           roomId: room.id,
-          nextShuffleTimestamp
+          nextShuffleTimestamp,
+          videoId: room.videoId,
+          videoStart: room.videoStart
         });
-
-        if (room.videoId) {
-          socket.emit('video_prompt', { videoId: room.videoId });
-        }
       }
     });
   });
