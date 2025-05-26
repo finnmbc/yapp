@@ -37,6 +37,11 @@
       box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
+    .room.active-room {
+      border-color: #007bff;
+      background: #e6f0ff;
+    }
+
     .users {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -56,6 +61,7 @@
       display: flex;
       flex-direction: column;
       padding: 1rem;
+      position: relative;
     }
 
     #messages {
@@ -103,6 +109,20 @@
       font-size: 0.9rem;
       color: #666;
     }
+
+    /* Overlay beim Shuffle */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      color: white;
+      font-size: 1.5rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -120,6 +140,8 @@
     <div class="info">Nächster Shuffle in <span id="countdown">--:--</span> Minuten</div>
   </div>
 
+  <div class="overlay" id="overlay">Neuer zufälliger Raum wird geladen...</div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
@@ -128,15 +150,17 @@
     const messages = document.getElementById('messages');
     const roomList = document.getElementById('roomList');
     const countdownEl = document.getElementById('countdown');
+    const overlay = document.getElementById('overlay');
 
     let nextShuffleTimestamp = null;
     let countdownInterval = null;
     let hasReloaded = false;
+    let currentRoomId = null;
 
     socket.on('joined_room', data => {
       nextShuffleTimestamp = data.nextShuffleTimestamp;
+      currentRoomId = data.roomId;
 
-      // Countdown nur einmal starten
       if (!countdownInterval && nextShuffleTimestamp) {
         countdownInterval = setInterval(() => {
           const remaining = Math.max(0, nextShuffleTimestamp - Date.now());
@@ -152,8 +176,11 @@
       roomData.forEach(room => {
         const div = document.createElement('div');
         div.className = 'room';
+        if (room.id === currentRoomId) {
+          div.classList.add('active-room');
+        }
         div.innerHTML = `<strong>Raum-ID:</strong> ${room.id}<div class="users">${
-          Array.from({ length: 4 }).map((_, i) => 
+          Array.from({ length: 4 }).map((_, i) =>
             `<div class="user">${i < room.count ? '👤' : '➕'}</div>`).join('')
         }</div>`;
         roomList.appendChild(div);
@@ -170,7 +197,9 @@
     socket.on('trigger_reload', () => {
       if (!hasReloaded) {
         hasReloaded = true;
-        location.reload();
+        overlay.style.display = 'flex';
+        document.body.style.filter = 'grayscale(0.7)';
+        setTimeout(() => location.reload(), 1000);
       }
     });
 
