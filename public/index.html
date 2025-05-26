@@ -164,8 +164,9 @@
       }
     });
 
-    let countdownInterval = setInterval(() => {
+    const countdownInterval = setInterval(() => {
       if (!nextShuffleTimestamp || hasReloaded) return;
+
       const remaining = Math.max(0, nextShuffleTimestamp - Date.now());
       const mins = Math.floor(remaining / 60000);
       const secs = Math.floor((remaining % 60000) / 1000);
@@ -173,8 +174,8 @@
 
       if (remaining <= 1000 && !hasReloaded) {
         hasReloaded = true;
-        clearInterval(countdownInterval);
-        setTimeout(() => location.reload(), 100);
+        clearInterval(countdownInterval); // Wichtig: Intervall stoppen
+        setTimeout(() => location.reload(), 100); // Nur einmal neu laden
       }
     }, 1000);
   </script>
