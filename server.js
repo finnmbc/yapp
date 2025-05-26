@@ -32,24 +32,21 @@ function updateRoomsForAll() {
   io.emit('rooms_update', summary);
 }
 
-function assignUserToRoom(socketId) {
-  let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
-  if (!room) {
-    room = createRoom();
-    rooms.push(room);
-  }
-  room.users.push(socketId);
-  return room;
-}
-
 function shuffleUsers() {
-  const allUsers = rooms.flatMap(r => r.users);
-  rooms = [];
+  const allUsers = [];
 
+  // Alle verbundenen Socket-IDs einsammeln (nicht nur aus Räumen)
+  io.sockets.sockets.forEach((socket) => {
+    allUsers.push(socket.id);
+  });
+
+  // Mischen (Fisher-Yates)
   for (let i = allUsers.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
   }
+
+  rooms = [];
 
   allUsers.forEach(socketId => {
     let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
@@ -60,11 +57,13 @@ function shuffleUsers() {
     room.users.push(socketId);
   });
 
+  // Zuerst alle aus alten Räumen entfernen
   io.sockets.sockets.forEach((socket) => {
     const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
     socketRooms.forEach(rId => socket.leave(rId));
   });
 
+  // Neue Räume beitreten lassen
   rooms.forEach(room => {
     room.users.forEach(socketId => {
       const socket = io.sockets.sockets.get(socketId);
@@ -88,17 +87,25 @@ io.on('connection', (socket) => {
 
   cleanupRooms();
 
-  const room = assignUserToRoom(socket.id);
-  socket.join(room.id);
-  socket.emit('joined_room', {
-    roomId: room.id,
-    nextShuffleTimestamp
-  });
+  const room = rooms.find(r => r.users.includes(socket.id));
+  if (!room) {
+    // Bei Erstverbindung zufällig auf Raum verteilen
+    shuffleUsers();
+  } else {
+    socket.join(room.id);
+    socket.emit('joined_room', {
+      roomId: room.id,
+      nextShuffleTimestamp
+    });
+  }
 
   updateRoomsForAll();
 
   socket.on('message', (msg) => {
-    io.to(room.id).emit('message', { user: socket.id, text: msg });
+    const userRoom = Array.from(socket.rooms).find(r => r !== socket.id);
+    if (userRoom) {
+      io.to(userRoom).emit('message', { user: socket.id, text: msg });
+    }
   });
 
   socket.on('disconnect', () => {

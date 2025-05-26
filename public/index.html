@@ -19,11 +19,6 @@
       padding: 10px;
       box-sizing: border-box;
     }
-    #header {
-      font-weight: bold;
-      margin-bottom: 10px;
-      font-size: 16px;
-    }
     #messages {
       flex: 1;
       border: 1px solid #ccc;
@@ -43,6 +38,11 @@
       border-radius: 4px;
       font-size: 14px;
     }
+    #timer {
+      font-weight: bold;
+      color: #d32f2f;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
@@ -53,8 +53,8 @@
   </div>
 
   <div id="chat-container">
-    <div id="header">Raum: <span id="current-room">...</span> · Nächster Wechsel in: <span id="timer">--:--</span></div>
     <div id="messages"></div>
+    <div id="timer"></div>
     <input id="input" autocomplete="off" placeholder="Tippe deine Nachricht..." />
   </div>
 
@@ -65,21 +65,8 @@
     const messagesDiv = document.getElementById('messages');
     const input = document.getElementById('input');
     const roomListDiv = document.getElementById('room-list');
-    const roomSpan = document.getElementById('current-room');
-    const timerSpan = document.getElementById('timer');
-
-    let nextShuffleAt = null;
-
-    function updateTimer() {
-      if (!nextShuffleAt) return;
-      const now = Date.now();
-      const diff = Math.max(0, Math.floor((nextShuffleAt - now) / 1000));
-      const min = String(Math.floor(diff / 60)).padStart(2, '0');
-      const sec = String(diff % 60).padStart(2, '0');
-      timerSpan.textContent = `${min}:${sec}`;
-    }
-
-    setInterval(updateTimer, 1000);
+    const timerDiv = document.getElementById('timer');
+    let countdownInterval;
 
     socket.on('message', data => {
       const msg = document.createElement('div');
@@ -95,14 +82,13 @@
       }
     });
 
-    socket.on('joined_room', ({ roomId, nextShuffleTimestamp }) => {
+    socket.on('joined_room', data => {
       const msg = document.createElement('div');
-      msg.textContent = `Du bist in Raum: ${roomId}`;
+      msg.textContent = `Du bist in Raum: ${data.roomId}`;
       msg.style.fontWeight = 'bold';
       messagesDiv.appendChild(msg);
-      roomSpan.textContent = roomId;
-      nextShuffleAt = nextShuffleTimestamp;
-      updateTimer();
+
+      startCountdown(data.nextShuffleTimestamp);
     });
 
     socket.on('rooms_update', rooms => {
@@ -118,6 +104,29 @@
         roomListDiv.appendChild(div);
       });
     });
+
+    function startCountdown(targetTimestamp) {
+      clearInterval(countdownInterval);
+
+      function updateTimer() {
+        const now = Date.now();
+        const diff = targetTimestamp - now;
+
+        if (diff <= 0) {
+          timerDiv.textContent = "Neue Runde startet...";
+          clearInterval(countdownInterval);
+          setTimeout(() => location.reload(), 1000);
+          return;
+        }
+
+        const minutes = Math.floor(diff / 60000);
+        const seconds = Math.floor((diff % 60000) / 1000);
+        timerDiv.textContent = `Nächster Wechsel in: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+      }
+
+      updateTimer();
+      countdownInterval = setInterval(updateTimer, 1000);
+    }
   </script>
 
 </body>
