@@ -1,71 +1,124 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Yapp</title>
+  <title>Yapp Chat</title>
   <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 20px auto; }
-    #timer { font-size: 20px; font-weight: bold; margin-bottom: 10px; }
-    #room { margin-bottom: 10px; }
-    #chat { border: 1px solid #ccc; padding: 10px; height: 200px; overflow-y: scroll; margin-bottom: 10px; }
-    #rooms-overview { font-size: 14px; margin-bottom: 20px; }
+    body { font-family: Arial; margin: 0; display: flex; height: 100vh; }
+    #sidebar {
+      width: 200px;
+      border-right: 1px solid #ccc;
+      padding: 10px;
+      box-sizing: border-box;
+      overflow-y: auto;
+      background: #f9f9f9;
+    }
+    #chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    #header {
+      font-weight: bold;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+    #messages {
+      flex: 1;
+      border: 1px solid #ccc;
+      overflow-y: scroll;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    #input {
+      width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    .room {
+      padding: 5px 8px;
+      margin-bottom: 5px;
+      background: #e0e0e0;
+      border-radius: 4px;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
-  <div id="timer">Neustart in: 120s</div>
-  <div id="room">Du bist in: ...</div>
-  <div id="rooms-overview"></div>
 
-  <div id="chat"></div>
-  <input id="msg" placeholder="Nachricht..." autocomplete="off" />
-  <button onclick="sendMessage()">Senden</button>
+  <div id="sidebar">
+    <h3>Räume</h3>
+    <div id="room-list">Lade...</div>
+  </div>
+
+  <div id="chat-container">
+    <div id="header">Raum: <span id="current-room">...</span> · Nächster Wechsel in: <span id="timer">--:--</span></div>
+    <div id="messages"></div>
+    <input id="input" autocomplete="off" placeholder="Tippe deine Nachricht..." />
+  </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
 
-    const chat = document.getElementById('chat');
-    const roomDisplay = document.getElementById('room');
-    const timerDisplay = document.getElementById('timer');
-    const roomsOverview = document.getElementById('rooms-overview');
+    const messagesDiv = document.getElementById('messages');
+    const input = document.getElementById('input');
+    const roomListDiv = document.getElementById('room-list');
+    const roomSpan = document.getElementById('current-room');
+    const timerSpan = document.getElementById('timer');
 
-    socket.on('joined_room', (roomId) => {
-      roomDisplay.textContent = 'Du bist in: ' + roomId;
-      appendMessage('--- Du bist jetzt in einem neuen Raum ---');
-    });
+    let nextShuffleAt = null;
 
-    socket.on('message', (data) => {
-      appendMessage(data.user + ': ' + data.text);
-    });
-
-    socket.on('rooms_update', (summary) => {
-      roomsOverview.innerHTML = '<b>Aktuelle Räume:</b><br>' +
-        summary.map(r => `${r.id}: ${r.count} Nutzer`).join('<br>');
-    });
-
-    function appendMessage(msg) {
-      const div = document.createElement('div');
-      div.textContent = msg;
-      chat.appendChild(div);
-      chat.scrollTop = chat.scrollHeight;
+    function updateTimer() {
+      if (!nextShuffleAt) return;
+      const now = Date.now();
+      const diff = Math.max(0, Math.floor((nextShuffleAt - now) / 1000));
+      const min = String(Math.floor(diff / 60)).padStart(2, '0');
+      const sec = String(diff % 60).padStart(2, '0');
+      timerSpan.textContent = `${min}:${sec}`;
     }
 
-    function sendMessage() {
-      const input = document.getElementById('msg');
-      const text = input.value.trim();
-      if (text) {
-        socket.emit('message', text);
+    setInterval(updateTimer, 1000);
+
+    socket.on('message', data => {
+      const msg = document.createElement('div');
+      msg.textContent = `${data.user}: ${data.text}`;
+      messagesDiv.appendChild(msg);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    });
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && input.value.trim() !== '') {
+        socket.emit('message', input.value.trim());
         input.value = '';
       }
-    }
+    });
 
-    // Countdown-Timer für 2 Minuten
-    let secondsLeft = 120;
-    setInterval(() => {
-      secondsLeft--;
-      if (secondsLeft <= 0) secondsLeft = 120;
-      timerDisplay.textContent = `Neustart in: ${secondsLeft}s`;
-    }, 1000);
+    socket.on('joined_room', ({ roomId, nextShuffleTimestamp }) => {
+      const msg = document.createElement('div');
+      msg.textContent = `Du bist in Raum: ${roomId}`;
+      msg.style.fontWeight = 'bold';
+      messagesDiv.appendChild(msg);
+      roomSpan.textContent = roomId;
+      nextShuffleAt = nextShuffleTimestamp;
+      updateTimer();
+    });
+
+    socket.on('rooms_update', rooms => {
+      roomListDiv.innerHTML = '';
+      if (rooms.length === 0) {
+        roomListDiv.textContent = 'Keine Räume aktiv';
+        return;
+      }
+      rooms.forEach(room => {
+        const div = document.createElement('div');
+        div.className = 'room';
+        div.textContent = `${room.id} — ${room.count} Nutzer`;
+        roomListDiv.appendChild(div);
+      });
+    });
   </script>
+
 </body>
 </html>
