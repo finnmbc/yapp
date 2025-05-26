@@ -9,7 +9,7 @@ const io = socketIo(server);
 
 const MAX_USERS_PER_ROOM = 4;
 const ROOM_DURATION_MS = 10 * 60 * 1000; // 10 Minuten
-const RESHUFFLE_INTERVAL_MS = 2 * 60 * 1000; // 2 Minuten
+const RESHUFFLE_INTERVAL_MS = (1 * 60 + 8) * 1000; // 2 Minuten
 
 let rooms = [];
 let nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
