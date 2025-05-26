@@ -14,7 +14,7 @@ const RESHUFFLE_INTERVAL_MS = 2 * 60 * 1000; // 2 Minuten
 let rooms = [];
 let nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
 
-// Hilfsfunktion zum Erstellen eines neuen Raums
+// Raum erstellen
 function createRoom() {
   return {
     id: 'room_' + Math.random().toString(36).substr(2, 9),
@@ -23,28 +23,23 @@ function createRoom() {
   };
 }
 
-// Alte/ungültige Räume entfernen
+// Alte Räume bereinigen
 function cleanupRooms() {
   const now = Date.now();
   rooms = rooms.filter(room => room.users.length > 0 && (now - room.createdAt < ROOM_DURATION_MS));
 }
 
-// Alle Clients über aktuelle Räume informieren
+// Räume an alle senden
 function updateRoomsForAll() {
   const summary = rooms.map(r => ({ id: r.id, count: r.users.length }));
   io.emit('rooms_update', summary);
 }
 
-// Nutzer zufällig auf Räume verteilen
+// Shuffle alle Nutzer zentral
 function shuffleUsers() {
-  const allUsers = [];
+  const allUsers = Array.from(io.sockets.sockets.keys());
 
-  // Alle verbundenen Sockets sammeln
-  io.sockets.sockets.forEach((socket) => {
-    allUsers.push(socket.id);
-  });
-
-  // Nutzer mischen (Fisher-Yates)
+  // Mischen (Fisher-Yates)
   for (let i = allUsers.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
@@ -52,7 +47,7 @@ function shuffleUsers() {
 
   rooms = [];
 
-  // Nutzer auf neue Räume verteilen
+  // Neu auf Räume verteilen
   allUsers.forEach(socketId => {
     let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
     if (!room) {
@@ -63,12 +58,12 @@ function shuffleUsers() {
   });
 
   // Alle Nutzer aus alten Räumen entfernen
-  io.sockets.sockets.forEach((socket) => {
+  io.sockets.sockets.forEach(socket => {
     const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
     socketRooms.forEach(rId => socket.leave(rId));
   });
 
-  // Nutzer neuen Räumen zuweisen und Event senden
+  // Nutzer neuen Räumen zuweisen
   rooms.forEach(room => {
     room.users.forEach(socketId => {
       const socket = io.sockets.sockets.get(socketId);
@@ -85,27 +80,43 @@ function shuffleUsers() {
   updateRoomsForAll();
 }
 
-// Statische Dateien aus dem "public"-Ordner bereitstellen
-app.use(express.static(path.join(__dirname, 'public')));
-
-// WebSocket-Handling
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  cleanupRooms();
-
-  const room = rooms.find(r => r.users.includes(socket.id));
-  if (room) {
-    socket.join(room.id);
+// Neuen Nutzer einem Raum zuweisen (ohne globales Shuffle)
+function assignUserToRoom(socket) {
+  let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
+  if (!room) {
+    room = createRoom();
+    rooms.push(room);
   }
 
-  // Immer joined_room senden – mit oder ohne Raum
+  room.users.push(socket.id);
+  socket.join(room.id);
+
   socket.emit('joined_room', {
-    roomId: room ? room.id : null,
+    roomId: room.id,
     nextShuffleTimestamp
   });
 
   updateRoomsForAll();
+}
+
+// Statische Dateien
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Socket-Handling
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+  cleanupRooms();
+
+  const existingRoom = rooms.find(r => r.users.includes(socket.id));
+  if (!existingRoom) {
+    assignUserToRoom(socket);
+  } else {
+    socket.join(existingRoom.id);
+    socket.emit('joined_room', {
+      roomId: existingRoom.id,
+      nextShuffleTimestamp
+    });
+  }
 
   socket.on('message', (msg) => {
     const userRoom = Array.from(socket.rooms).find(r => r !== socket.id);
@@ -124,9 +135,9 @@ io.on('connection', (socket) => {
   });
 });
 
-// Zyklisches Shuffeln alle 2 Minuten
+// Shuffle alle 2 Minuten
 setInterval(() => {
-  console.log('Shuffle users in rooms...');
+  console.log('Shuffle users...');
   shuffleUsers();
   nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
 }, RESHUFFLE_INTERVAL_MS);
