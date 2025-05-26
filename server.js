@@ -8,13 +8,12 @@ const server = http.createServer(app);
 const io = socketIo(server);
 
 const MAX_USERS_PER_ROOM = 4;
-const MIN_USERS_PER_ROOM = 2;
 const RESHUFFLE_INTERVAL_MS = (1 * 60 + 3) * 1000;
 
 let rooms = [];
 let nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
 
-// Raum erstellen (ohne createdAt)
+// Raum erstellen
 function createRoom() {
   return {
     id: 'room_' + Math.random().toString(36).substr(2, 9),
@@ -22,7 +21,7 @@ function createRoom() {
   };
 }
 
-// Nur leere Räume entfernen
+// Räume bereinigen (nur leere entfernen)
 function cleanupRooms() {
   rooms = rooms.filter(room => room.users.length > 0);
 }
@@ -33,58 +32,52 @@ function updateRoomsForAll() {
   io.emit('rooms_update', summary);
 }
 
-// Nutzer fair auf Räume verteilen (2–4 Nutzer pro Raum, keine 1er-Gruppen)
+// Nutzer direkt beim Verbinden einem Raum zuweisen
+function assignUserToRoom(socket) {
+  let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
+  if (!room) {
+    room = createRoom();
+    rooms.push(room);
+  }
+
+  room.users.push(socket.id);
+  socket.join(room.id);
+
+  socket.emit('joined_room', {
+    roomId: room.id,
+    nextShuffleTimestamp
+  });
+
+  updateRoomsForAll();
+}
+
+// Nutzer regelmäßig neu durchmischen (Shuffle)
 function shuffleUsers() {
   const allUsers = Array.from(io.sockets.sockets.keys());
 
-  // Nutzer mischen
+  // Fisher-Yates Shuffle
   for (let i = allUsers.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
   }
 
   rooms = [];
-  const groups = [];
-
   let i = 0;
+
   while (i < allUsers.length) {
-    const usersLeft = allUsers.length - i;
-    let groupSize;
-
-    if (usersLeft === 1) {
-      const lastGroup = groups.pop();
-      lastGroup.push(allUsers[i]);
-      groups.push(lastGroup);
-      break;
-    }
-
-    if (usersLeft === 2 || usersLeft === 3 || usersLeft === 4) {
-      groupSize = usersLeft;
-    } else if (usersLeft % 3 === 0 || usersLeft > 4) {
-      groupSize = 3;
-    } else {
-      groupSize = 4;
-    }
-
-    const group = allUsers.slice(i, i + groupSize);
-    groups.push(group);
-    i += groupSize;
+    const room = createRoom();
+    room.users = allUsers.slice(i, i + MAX_USERS_PER_ROOM);
+    rooms.push(room);
+    i += MAX_USERS_PER_ROOM;
   }
 
-  // Räume aus Gruppen erstellen
-  groups.forEach(group => {
-    const room = createRoom();
-    room.users = group;
-    rooms.push(room);
-  });
-
-  // Alte Räume verlassen
+  // Alle Sockets aus alten Räumen entfernen
   io.sockets.sockets.forEach(socket => {
     const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
     socketRooms.forEach(rId => socket.leave(rId));
   });
 
-  // Räume zuweisen
+  // Neue Räume zuweisen
   rooms.forEach(room => {
     room.users.forEach(socketId => {
       const socket = io.sockets.sockets.get(socketId);
@@ -101,35 +94,13 @@ function shuffleUsers() {
   updateRoomsForAll();
 }
 
-// Statische Dateien bereitstellen
+// Statische Dateien
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Socket.IO Verbindung
+// Verbindung herstellen
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
-  // FIX: cleanupRooms NICHT hier aufrufen!
-
-  // Suche vorhandene Raumzuweisung
-  let assignedRoom = null;
-  for (const room of rooms) {
-    if (room.users.includes(socket.id)) {
-      assignedRoom = room;
-      break;
-    }
-  }
-
-  if (assignedRoom) {
-    socket.join(assignedRoom.id);
-    socket.emit('joined_room', {
-      roomId: assignedRoom.id,
-      nextShuffleTimestamp
-    });
-  } else {
-    socket.emit('joined_room', {
-      roomId: null,
-      nextShuffleTimestamp
-    });
-  }
+  assignUserToRoom(socket);
 
   socket.on('message', (msg) => {
     const userRoom = Array.from(socket.rooms).find(r => r !== socket.id);
@@ -143,7 +114,7 @@ io.on('connection', (socket) => {
     rooms.forEach(r => {
       r.users = r.users.filter(u => u !== socket.id);
     });
-    cleanupRooms(); // ✅ NUR HIER
+    cleanupRooms();
     updateRoomsForAll();
   });
 });
@@ -164,9 +135,9 @@ function scheduleNextShuffle() {
   }, delay);
 }
 
-// Start
 scheduleNextShuffle();
 
+// Server starten
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server läuft auf Port ${PORT}`);
