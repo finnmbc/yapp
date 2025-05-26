@@ -7,9 +7,10 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
+const MAX_USERS_PER_ROOM = 10;
 const ROOM_DURATION_MS = 10 * 60 * 1000; // 10 Minuten
 
-let rooms = []; // Räume mit { id, users: [socketIds], createdAt }
+let rooms = [];
 
 function createRoom() {
   return {
@@ -30,26 +31,35 @@ function updateRoomsForAll() {
   io.emit('rooms_update', summary);
 }
 
+app.use(express.static(path.join(__dirname, 'public')));
+
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   cleanupRooms();
 
-  // Räume so anpassen, dass es mindestens so viele Räume wie Nutzer gibt
-  // Also: Jeder Nutzer in seinem eigenen Raum
-  if (rooms.length < io.engine.clientsCount) {
-    const needed = io.engine.clientsCount - rooms.length;
+  // Räume neu erzeugen, falls zu wenige vorhanden für aktuelle Nutzer
+  // Dabei Räume mit max 10 Nutzern füllen
+  const totalUsers = io.engine.clientsCount;
+
+  // Aktuell belegte Plätze zählen
+  const totalSlots = rooms.reduce((acc, r) => acc + r.users.length, 0);
+
+  if (totalSlots < totalUsers) {
+    const needed = totalUsers - totalSlots;
+    // Neue Räume anlegen, wenn nötig
     for (let i = 0; i < needed; i++) {
       rooms.push(createRoom());
     }
   }
 
-  // Nutzer einem Raum mit Platz zuweisen (Platz hier = 1 Nutzer pro Raum)
-  let room = rooms.find(r => r.users.length < 1);
+  // Nutzer einem Raum mit freiem Platz zuweisen
+  let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
   if (!room) {
     room = createRoom();
     rooms.push(room);
   }
+
   room.users.push(socket.id);
   socket.join(room.id);
 
@@ -63,7 +73,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
-    // Nutzer aus Raum entfernen
+    // Nutzer aus allen Räumen entfernen (normalerweise nur 1 Raum)
     rooms.forEach(r => {
       r.users = r.users.filter(u => u !== socket.id);
     });
