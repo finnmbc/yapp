@@ -110,7 +110,6 @@
       color: #666;
     }
 
-    /* Overlay beim Shuffle */
     .overlay {
       position: fixed;
       inset: 0;
@@ -159,7 +158,11 @@
 
     socket.on('joined_room', data => {
       nextShuffleTimestamp = data.nextShuffleTimestamp;
-      currentRoomId = data.roomId;
+
+      // ✅ Nur setzen, wenn wirklich ein Raum zugewiesen wurde
+      if (data.roomId) {
+        currentRoomId = data.roomId;
+      }
 
       if (!countdownInterval && nextShuffleTimestamp) {
         countdownInterval = setInterval(() => {
