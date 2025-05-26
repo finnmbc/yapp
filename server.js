@@ -8,8 +8,8 @@ const server = http.createServer(app);
 const io = socketIo(server);
 
 const MAX_USERS_PER_ROOM = 4;
-const YAPPA_EXTRA_SECONDS = 33;
-const IMAGE_DURATION_SECONDS = 180; // z. B. 3 Minuten Anschauzeit
+const YAPPA_EXTRA_SECONDS = 23;
+const IMAGE_DURATION_SECONDS = 10; // z. B. 3 Minuten Anschauzeit
 
 let rooms = [];
 
