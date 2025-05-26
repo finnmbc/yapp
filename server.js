@@ -107,7 +107,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Socket.IO Verbindung
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
-  cleanupRooms();
+  // FIX: cleanupRooms NICHT hier aufrufen!
 
   // Suche vorhandene Raumzuweisung
   let assignedRoom = null;
@@ -143,7 +143,7 @@ io.on('connection', (socket) => {
     rooms.forEach(r => {
       r.users = r.users.filter(u => u !== socket.id);
     });
-    cleanupRooms();
+    cleanupRooms(); // ✅ NUR HIER
     updateRoomsForAll();
   });
 });
