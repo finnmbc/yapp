@@ -13,13 +13,13 @@ const RESHUFFLE_INTERVAL_MS = (1 * 60 + 3) * 1000;
 let rooms = [];
 let nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
 
-// Liste mit YouTube Shorts Video-IDs (Shorts sind oft <60 Sek.)
+// Liste mit normalen YouTube-Video-IDs
 const videoIds = [
-  "HYkP2N6Iuhk", // Beispielshorts
-  "ctGkA_Gx4_w",
-  "yZ6qZ6QpZfQ",
-  "2Vv-BfVoq4g", // Ed Sheeran z. B. als Short
-  "EAB6NRL1N9M"
+  "dQw4w9WgXcQ", // Rickroll
+  "kJQP7kiw5Fk", // Despacito
+  "3JZ_D3ELwOQ", // Nyan Cat
+  "Zi_XLOBDo_Y", // Michael Jackson - Billie Jean
+  "RgKAFK5djSk"  // Wiz Khalifa - See You Again
 ];
 
 function getRandomVideoId(exclude = []) {
@@ -31,7 +31,7 @@ function createRoom() {
   return {
     id: 'room_' + Math.random().toString(36).substr(2, 9),
     users: [],
-    videoId: null // wird später gesetzt
+    videoId: null
   };
 }
 
@@ -60,7 +60,6 @@ function assignUserToRoom(socket) {
     nextShuffleTimestamp
   });
 
-  // Sende dem Nutzer das Video seines Raums
   if (room.videoId) {
     socket.emit('video_prompt', { videoId: room.videoId });
   }
@@ -89,13 +88,11 @@ function shuffleUsers() {
     i += MAX_USERS_PER_ROOM;
   }
 
-  // Alle Sockets aus alten Räumen entfernen
   io.sockets.sockets.forEach(socket => {
     const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
     socketRooms.forEach(rId => socket.leave(rId));
   });
 
-  // Räume zuweisen + Video senden
   rooms.forEach(room => {
     room.users.forEach(socketId => {
       const socket = io.sockets.sockets.get(socketId);
