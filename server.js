@@ -9,14 +9,14 @@ const io = socketIo(server);
 
 const MAX_USERS_PER_ROOM = 4;
 const YAPPA_EXTRA_SECONDS = 23;           // Nachbesprechzeit
-const IMAGE_DURATION_SECONDS = 10;       // Dauer zur Bildbetrachtung
+const IMAGE_DURATION_SECONDS = 10;        // Dauer zur Bildbetrachtung
 
 let rooms = [];
 
-// 🔁 Liefert zufällige Bild-URL von Unsplash
+// 🔁 Liefert zufällige Bild-URL von picsum.photos
 function getRandomImageUrl() {
   const seed = Math.floor(Math.random() * 1000000);
-  return `https://source.unsplash.com/random/800x450?sig=${seed}`;
+  return `https://picsum.photos/800/450?random=${seed}`;
 }
 
 function createRoom() {
