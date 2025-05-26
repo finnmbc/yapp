@@ -3,15 +3,54 @@
 <head>
   <title>Yapp Chat</title>
   <style>
-    body { font-family: Arial; max-width: 600px; margin: 2em auto; }
-    #messages { border: 1px solid #ccc; height: 300px; overflow-y: scroll; padding: 10px; }
-    #input { width: 100%; padding: 10px; }
+    body { font-family: Arial; margin: 0; display: flex; height: 100vh; }
+    #sidebar {
+      width: 200px;
+      border-right: 1px solid #ccc;
+      padding: 10px;
+      box-sizing: border-box;
+      overflow-y: auto;
+      background: #f9f9f9;
+    }
+    #chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    #messages {
+      flex: 1;
+      border: 1px solid #ccc;
+      overflow-y: scroll;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    #input {
+      width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    .room {
+      padding: 5px 8px;
+      margin-bottom: 5px;
+      background: #e0e0e0;
+      border-radius: 4px;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
 
-  <div id="messages"></div>
-  <input id="input" autocomplete="off" placeholder="Tippe deine Nachricht..." />
+  <div id="sidebar">
+    <h3>Räume</h3>
+    <div id="room-list">Lade...</div>
+  </div>
+
+  <div id="chat-container">
+    <div id="messages"></div>
+    <input id="input" autocomplete="off" placeholder="Tippe deine Nachricht..." />
+  </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -19,6 +58,7 @@
 
     const messagesDiv = document.getElementById('messages');
     const input = document.getElementById('input');
+    const roomListDiv = document.getElementById('room-list');
 
     socket.on('message', data => {
       const msg = document.createElement('div');
@@ -39,6 +79,20 @@
       msg.textContent = `Du bist in Raum: ${roomId}`;
       msg.style.fontWeight = 'bold';
       messagesDiv.appendChild(msg);
+    });
+
+    socket.on('rooms_update', rooms => {
+      roomListDiv.innerHTML = ''; // clear
+      if (rooms.length === 0) {
+        roomListDiv.textContent = 'Keine Räume aktiv';
+        return;
+      }
+      rooms.forEach(room => {
+        const div = document.createElement('div');
+        div.className = 'room';
+        div.textContent = `${room.id} — ${room.count} Nutzer`;
+        roomListDiv.appendChild(div);
+      });
     });
   </script>
 
