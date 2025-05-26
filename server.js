@@ -9,8 +9,8 @@ const io = socketIo(server);
 
 const MAX_USERS_PER_ROOM = 4;
 const MIN_USERS_PER_ROOM = 2;
-const ROOM_DURATION_MS = 10 * 60 * 1000; // 10 Minuten
-const RESHUFFLE_INTERVAL_MS = (1 * 60 + 3) * 1000; // 1:03 Minuten
+const ROOM_DURATION_MS = 10 * 60 * 1000;
+const RESHUFFLE_INTERVAL_MS = (1 * 60 + 3) * 1000;
 
 let rooms = [];
 let nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
@@ -52,11 +52,9 @@ function shuffleUsers() {
   let i = 0;
   while (i < allUsers.length) {
     const usersLeft = allUsers.length - i;
-
     let groupSize;
 
     if (usersLeft === 1) {
-      // Letzten Nutzer sinnvoll an vorherige Gruppe anhängen
       const lastGroup = groups.pop();
       lastGroup.push(allUsers[i]);
       groups.push(lastGroup);
@@ -76,20 +74,20 @@ function shuffleUsers() {
     i += groupSize;
   }
 
-  // Räume aus Gruppen erstellen
+  // Räume erstellen aus Gruppen
   groups.forEach(group => {
     const room = createRoom();
     room.users = group;
     rooms.push(room);
   });
 
-  // Alte Räume verlassen
+  // Alle Sockets aus alten Räumen entfernen
   io.sockets.sockets.forEach(socket => {
     const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
     socketRooms.forEach(rId => socket.leave(rId));
   });
 
-  // Neue Räume zuweisen
+  // Räume zuweisen
   rooms.forEach(room => {
     room.users.forEach(socketId => {
       const socket = io.sockets.sockets.get(socketId);
@@ -106,40 +104,33 @@ function shuffleUsers() {
   updateRoomsForAll();
 }
 
-// Nutzer beim Verbindungsaufbau Raum zuweisen
-function assignUserToRoom(socket) {
-  let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
-  if (!room) {
-    room = createRoom();
-    rooms.push(room);
-  }
-
-  room.users.push(socket.id);
-  socket.join(room.id);
-
-  socket.emit('joined_room', {
-    roomId: room.id,
-    nextShuffleTimestamp
-  });
-
-  updateRoomsForAll();
-}
-
 // Statische Dateien bereitstellen
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Socket.IO-Verbindung
+// Verbindung herstellen
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
   cleanupRooms();
 
-  const existingRoom = rooms.find(r => r.users.includes(socket.id));
-  if (!existingRoom) {
-    assignUserToRoom(socket);
-  } else {
-    socket.join(existingRoom.id);
+  // Suche, ob Socket bereits in Raum war (z. B. nach reconnect)
+  let assignedRoom = null;
+  for (const room of rooms) {
+    if (room.users.includes(socket.id)) {
+      assignedRoom = room;
+      break;
+    }
+  }
+
+  if (assignedRoom) {
+    socket.join(assignedRoom.id);
     socket.emit('joined_room', {
-      roomId: existingRoom.id,
+      roomId: assignedRoom.id,
+      nextShuffleTimestamp
+    });
+  } else {
+    // Noch keinem Raum zugewiesen – warte auf nächsten Shuffle
+    socket.emit('joined_room', {
+      roomId: null,
       nextShuffleTimestamp
     });
   }
@@ -161,7 +152,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Shuffle-Zyklus mit präzisem Timing
+// Shuffle-Zyklus starten
 function scheduleNextShuffle() {
   const now = Date.now();
   const delay = nextShuffleTimestamp - now;
@@ -171,15 +162,12 @@ function scheduleNextShuffle() {
   setTimeout(() => {
     console.log('Shuffle users...');
     shuffleUsers();
-
     nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
     io.emit('trigger_reload');
-
     scheduleNextShuffle();
   }, delay);
 }
 
-// Shuffle starten
 scheduleNextShuffle();
 
 // Server starten
