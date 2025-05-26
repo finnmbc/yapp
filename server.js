@@ -2,26 +2,31 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
 const MAX_USERS_PER_ROOM = 4;
-const RESHUFFLE_INTERVAL_MS = (1 * 60 + 3) * 1000;
+const YAPPA_EXTRA_SECONDS = 33;
 
 let rooms = [];
-let nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
+let videoIds = [];
 
-// Liste mit YouTube-Video-IDs
-const videoIds = [
-  "dQw4w9WgXcQ", // Rickroll
-  "kJQP7kiw5Fk", // Despacito
-  "3JZ_D3ELwOQ", // Nyan Cat
-  "Zi_XLOBDo_Y", // Billie Jean
-  "RgKAFK5djSk"  // See You Again
-];
+// 📄 Videos aus Datei laden
+function loadVideos() {
+  const filePath = path.join(__dirname, 'videos.txt');
+  if (fs.existsSync(filePath)) {
+    const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
+    videoIds = lines.map(l => l.trim()).filter(l => l.length > 0);
+  } else {
+    console.error("❌ Datei 'videos.txt' nicht gefunden.");
+    process.exit(1);
+  }
+}
 
+// 🔁 Nächstes verfügbares Video
 function getRandomVideoId(exclude = []) {
   const options = videoIds.filter(id => !exclude.includes(id));
   return options[Math.floor(Math.random() * options.length)];
@@ -32,7 +37,8 @@ function createRoom() {
     id: 'room_' + Math.random().toString(36).substr(2, 9),
     users: [],
     videoId: null,
-    videoStart: null
+    videoStart: null,
+    shuffleAt: null
   };
 }
 
@@ -51,6 +57,7 @@ function assignUserToRoom(socket) {
     room = createRoom();
     room.videoId = getRandomVideoId();
     room.videoStart = Date.now();
+    room.shuffleAt = room.videoStart + 1000 * (180 + YAPPA_EXTRA_SECONDS); // fallback 3min
     rooms.push(room);
   }
 
@@ -59,9 +66,9 @@ function assignUserToRoom(socket) {
 
   socket.emit('joined_room', {
     roomId: room.id,
-    nextShuffleTimestamp,
     videoId: room.videoId,
-    videoStart: room.videoStart
+    videoStart: room.videoStart,
+    shuffleAt: room.shuffleAt
   });
 
   updateRoomsForAll();
@@ -70,7 +77,6 @@ function assignUserToRoom(socket) {
 function shuffleUsers() {
   const allUsers = Array.from(io.sockets.sockets.keys());
 
-  // Zufällige Reihenfolge (Fisher-Yates)
   for (let i = allUsers.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
@@ -85,6 +91,7 @@ function shuffleUsers() {
     room.users = allUsers.slice(i, i + MAX_USERS_PER_ROOM);
     room.videoId = getRandomVideoId(assignedVideoIds);
     room.videoStart = Date.now();
+    room.shuffleAt = room.videoStart + 1000 * (180 + YAPPA_EXTRA_SECONDS);
     assignedVideoIds.push(room.videoId);
     rooms.push(room);
     i += MAX_USERS_PER_ROOM;
@@ -102,9 +109,9 @@ function shuffleUsers() {
         socket.join(room.id);
         socket.emit('joined_room', {
           roomId: room.id,
-          nextShuffleTimestamp,
           videoId: room.videoId,
-          videoStart: room.videoStart
+          videoStart: room.videoStart,
+          shuffleAt: room.shuffleAt
         });
       }
     });
@@ -113,10 +120,32 @@ function shuffleUsers() {
   updateRoomsForAll();
 }
 
+// 🧠 Überwacht Räume & triggert Shuffle pro Raum
+function monitorShuffleTimers() {
+  setInterval(() => {
+    const now = Date.now();
+    let needsShuffle = false;
+
+    for (const room of rooms) {
+      if (room.shuffleAt && now >= room.shuffleAt) {
+        needsShuffle = true;
+        break;
+      }
+    }
+
+    if (needsShuffle) {
+      console.log("🎬 Automatischer Shuffle wird ausgelöst.");
+      shuffleUsers();
+      io.emit('trigger_reload');
+    }
+  }, 1000);
+}
+
+// 📁 Statische Dateien bereitstellen
 app.use(express.static(path.join(__dirname, 'public')));
 
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  console.log('✅ User connected:', socket.id);
   assignUserToRoom(socket);
 
   socket.on('message', (msg) => {
@@ -127,7 +156,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+    console.log('❌ User disconnected:', socket.id);
     rooms.forEach(r => {
       r.users = r.users.filter(u => u !== socket.id);
     });
@@ -136,24 +165,11 @@ io.on('connection', (socket) => {
   });
 });
 
-function scheduleNextShuffle() {
-  const now = Date.now();
-  const delay = nextShuffleTimestamp - now;
-
-  console.log(`Nächstes Shuffle in ${Math.round(delay / 1000)} Sekunden.`);
-
-  setTimeout(() => {
-    console.log('Shuffle users...');
-    shuffleUsers();
-    nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
-    io.emit('trigger_reload');
-    scheduleNextShuffle();
-  }, delay);
-}
-
-scheduleNextShuffle();
+// 🚀 Start
+loadVideos();
+monitorShuffleTimers();
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server läuft auf Port ${PORT}`);
+  console.log(`🚀 Server läuft auf Port ${PORT}`);
 });
