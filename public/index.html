@@ -76,11 +76,13 @@
 
     #videoPrompt {
       margin-bottom: 1rem;
+      text-align: center;
     }
 
-    #videoPrompt iframe {
+    #videoPrompt img {
       width: 100%;
-      height: 60vh;
+      max-height: 60vh;
+      object-fit: cover;
       border-radius: 10px;
     }
 
@@ -157,7 +159,7 @@
   </div>
 
   <div class="main">
-    <div id="videoPrompt">🎥 Yappa-Video wird geladen...</div>
+    <div id="videoPrompt">🖼️ Bild wird geladen...</div>
     <div id="messages"></div>
     <form id="form">
       <input id="input" autocomplete="off" placeholder="Nachricht schreiben..." />
@@ -167,10 +169,10 @@
   </div>
 
   <div class="video-column">
-    <!-- Platz für zukünftige Werbung oder Features -->
+    <!-- Werbeblock o.ä. -->
   </div>
 
-  <div class="overlay" id="overlay">Neuer zufälliger Raum wird geladen...</div>
+  <div class="overlay" id="overlay">Neuer Raum wird geladen...</div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -190,21 +192,18 @@
     socket.on('joined_room', data => {
       currentRoomId = data.roomId || null;
 
-      if (data.videoId && data.videoStart && data.shuffleAt) {
-        // ⏱ Countdown basiert auf shuffle-Zeit
-        if (!countdownInterval) {
-          countdownInterval = setInterval(() => {
-            const remaining = Math.max(0, data.shuffleAt - Date.now());
-            const mins = Math.floor(remaining / 60000);
-            const secs = Math.floor((remaining % 60000) / 1000);
-            countdownEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-          }, 1000);
-        }
+      // Countdown anzeigen
+      if (data.shuffleAt && !countdownInterval) {
+        countdownInterval = setInterval(() => {
+          const remaining = Math.max(0, data.shuffleAt - Date.now());
+          const mins = Math.floor(remaining / 60000);
+          const secs = Math.floor((remaining % 60000) / 1000);
+          countdownEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }, 1000);
+      }
 
-        // 🎥 Video synchronisiert starten
-        const elapsedSeconds = Math.floor((Date.now() - data.videoStart) / 1000);
-        const embedUrl = `https://www.youtube.com/embed/${data.videoId}?start=${elapsedSeconds}&autoplay=1&mute=1&playsinline=1&rel=0`;
-        const html = `<iframe src="${embedUrl}" frameborder="0" allow="autoplay" allowfullscreen></iframe>`;
+      if (data.imageUrl) {
+        const html = `<img src="${data.imageUrl}" alt="Zufallsbild" loading="lazy" />`;
         videoPrompt.innerHTML = html;
       }
     });
