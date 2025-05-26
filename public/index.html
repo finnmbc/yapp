@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>🎉 Gruppenchat</title>
+  <title>Yappa yappa</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
@@ -107,17 +107,17 @@
 </head>
 <body>
   <div class="sidebar">
-    <h2>🗂 Räume</h2>
+    <h2>Räume</h2>
     <div id="roomList"></div>
   </div>
 
   <div class="main">
     <div id="messages"></div>
     <form id="form">
-      <input id="input" autocomplete="off" placeholder="Nachricht schreiben... ✍️" />
-      <button>📨 Senden</button>
+      <input id="input" autocomplete="off" placeholder="Nachricht schreiben..." />
+      <button>Senden</button>
     </form>
-    <div class="info">⌛ Nächster Shuffle in <span id="countdown">--:--</span> Minuten</div>
+    <div class="info">Nächster Shuffle in <span id="countdown">--:--</span> Minuten</div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
@@ -151,7 +151,7 @@
 
     socket.on('message', data => {
       const item = document.createElement('div');
-      item.textContent = `💬 ${data.user}: ${data.text}`;
+      item.textContent = `${data.user}: ${data.text}`;
       messages.appendChild(item);
       messages.scrollTop = messages.scrollHeight;
     });
@@ -164,16 +164,17 @@
       }
     });
 
-    setInterval(() => {
+    let countdownInterval = setInterval(() => {
       if (!nextShuffleTimestamp || hasReloaded) return;
       const remaining = Math.max(0, nextShuffleTimestamp - Date.now());
       const mins = Math.floor(remaining / 60000);
       const secs = Math.floor((remaining % 60000) / 1000);
       countdownEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
-      if (remaining <= 1000) {
+      if (remaining <= 1000 && !hasReloaded) {
         hasReloaded = true;
-        location.reload();
+        clearInterval(countdownInterval);
+        setTimeout(() => location.reload(), 100);
       }
     }, 1000);
   </script>
