@@ -36,7 +36,7 @@ function updateRoomsForAll() {
   io.emit('rooms_update', summary);
 }
 
-// Nutzer auf möglichst gleich große Räume verteilen (zwischen 2 und 4 Nutzer pro Raum)
+// Nutzer fair auf Räume verteilen (2–4 Nutzer pro Raum, keine 1er-Gruppen)
 function shuffleUsers() {
   const allUsers = Array.from(io.sockets.sockets.keys());
 
@@ -47,33 +47,37 @@ function shuffleUsers() {
   }
 
   rooms = [];
-
-  const totalUsers = allUsers.length;
   const groups = [];
 
-  // Berechne die beste Verteilung ohne 1er-Gruppen
-  let numGroups = Math.floor(totalUsers / MIN_USERS_PER_ROOM);
+  let i = 0;
+  while (i < allUsers.length) {
+    const usersLeft = allUsers.length - i;
 
-  while (numGroups > 0) {
-    const baseSize = Math.floor(totalUsers / numGroups);
-    const extras = totalUsers % numGroups;
-
-    if (baseSize > MAX_USERS_PER_ROOM) {
-      numGroups--;
-      continue;
+    if (usersLeft === 1) {
+      // Letzten Nutzer umverteilen → keine 1er-Gruppe
+      const lastGroup = groups.pop();
+      const split = Math.floor(lastGroup.length / 2);
+      const group1 = lastGroup.slice(0, split);
+      const group2 = lastGroup.slice(split).concat(allUsers[i]);
+      groups.push(group1, group2);
+      break;
     }
 
-    let index = 0;
-    for (let i = 0; i < numGroups; i++) {
-      const size = baseSize + (i < extras ? 1 : 0);
-      const group = allUsers.slice(index, index + size);
-      groups.push(group);
-      index += size;
+    let groupSize;
+    if (usersLeft === 2 || usersLeft === 3 || usersLeft === 4) {
+      groupSize = usersLeft;
+    } else if (usersLeft % 3 === 0 || usersLeft > 4) {
+      groupSize = 3;
+    } else {
+      groupSize = 4;
     }
-    break;
+
+    const group = allUsers.slice(i, i + groupSize);
+    groups.push(group);
+    i += groupSize;
   }
 
-  // Räume erstellen aus Gruppen
+  // Räume aus Gruppen erstellen
   groups.forEach(group => {
     const room = createRoom();
     room.users = group;
@@ -103,7 +107,7 @@ function shuffleUsers() {
   updateRoomsForAll();
 }
 
-// Nutzer bei Verbindung einem Raum zuweisen
+// Nutzer beim Verbindungsaufbau Raum zuweisen
 function assignUserToRoom(socket) {
   let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
   if (!room) {
@@ -125,7 +129,7 @@ function assignUserToRoom(socket) {
 // Statische Dateien bereitstellen
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Socket-Verbindung
+// Socket.IO-Verbindung
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
   cleanupRooms();
@@ -158,7 +162,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// ⏱ Genaues Timing mit rekursivem setTimeout
+// Shuffle-Zyklus mit präzisem Timing
 function scheduleNextShuffle() {
   const now = Date.now();
   const delay = nextShuffleTimestamp - now;
@@ -176,7 +180,7 @@ function scheduleNextShuffle() {
   }, delay);
 }
 
-// Initial starten
+// Shuffle starten
 scheduleNextShuffle();
 
 // Server starten
