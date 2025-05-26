@@ -130,6 +130,7 @@
     const countdownEl = document.getElementById('countdown');
 
     let nextShuffleTimestamp = null;
+    let hasReloaded = false;
 
     socket.on('joined_room', data => {
       nextShuffleTimestamp = data.nextShuffleTimestamp;
@@ -163,15 +164,16 @@
       }
     });
 
-    // Countdown anzeigen
     setInterval(() => {
-      if (!nextShuffleTimestamp) return;
+      if (!nextShuffleTimestamp || hasReloaded) return;
       const remaining = Math.max(0, nextShuffleTimestamp - Date.now());
       const mins = Math.floor(remaining / 60000);
       const secs = Math.floor((remaining % 60000) / 1000);
       countdownEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
       if (remaining <= 1000) {
-        location.reload(); // Seite neu laden nach Shuffle
+        hasReloaded = true;
+        location.reload();
       }
     }, 1000);
   </script>
