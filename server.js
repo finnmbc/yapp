@@ -53,17 +53,16 @@ function shuffleUsers() {
   while (i < allUsers.length) {
     const usersLeft = allUsers.length - i;
 
+    let groupSize;
+
     if (usersLeft === 1) {
-      // Letzten Nutzer umverteilen → keine 1er-Gruppe
+      // Letzten Nutzer sinnvoll an vorherige Gruppe anhängen
       const lastGroup = groups.pop();
-      const split = Math.floor(lastGroup.length / 2);
-      const group1 = lastGroup.slice(0, split);
-      const group2 = lastGroup.slice(split).concat(allUsers[i]);
-      groups.push(group1, group2);
+      lastGroup.push(allUsers[i]);
+      groups.push(lastGroup);
       break;
     }
 
-    let groupSize;
     if (usersLeft === 2 || usersLeft === 3 || usersLeft === 4) {
       groupSize = usersLeft;
     } else if (usersLeft % 3 === 0 || usersLeft > 4) {
@@ -84,13 +83,13 @@ function shuffleUsers() {
     rooms.push(room);
   });
 
-  // Nutzer aus alten Räumen entfernen
+  // Alte Räume verlassen
   io.sockets.sockets.forEach(socket => {
     const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
     socketRooms.forEach(rId => socket.leave(rId));
   });
 
-  // Nutzer neuen Räumen zuweisen
+  // Neue Räume zuweisen
   rooms.forEach(room => {
     room.users.forEach(socketId => {
       const socket = io.sockets.sockets.get(socketId);
