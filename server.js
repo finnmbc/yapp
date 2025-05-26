@@ -13,44 +13,42 @@ const RESHUFFLE_INTERVAL_MS = (1 * 60 + 3) * 1000;
 let rooms = [];
 let nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
 
-// Liste mit YouTube-Video-IDs
+// Liste mit YouTube Shorts Video-IDs (Shorts sind oft <60 Sek.)
 const videoIds = [
-  "dQw4w9WgXcQ",
-  "kJQP7kiw5Fk",
-  "M7lc1UVf-VE",
-  "ZbZSe6N_BXs",
-  "3JZ_D3ELwOQ"
+  "HYkP2N6Iuhk", // Beispielshorts
+  "ctGkA_Gx4_w",
+  "yZ6qZ6QpZfQ",
+  "2Vv-BfVoq4g", // Ed Sheeran z. B. als Short
+  "EAB6NRL1N9M"
 ];
 
-function getRandomVideoId() {
-  return videoIds[Math.floor(Math.random() * videoIds.length)];
+function getRandomVideoId(exclude = []) {
+  const options = videoIds.filter(id => !exclude.includes(id));
+  return options[Math.floor(Math.random() * options.length)];
 }
 
-// Raum erstellen
 function createRoom() {
   return {
     id: 'room_' + Math.random().toString(36).substr(2, 9),
     users: [],
-    videoId: null // 🎯 Speichere zugewiesenes Video hier
+    videoId: null // wird später gesetzt
   };
 }
 
-// Räume bereinigen (nur leere entfernen)
 function cleanupRooms() {
   rooms = rooms.filter(room => room.users.length > 0);
 }
 
-// Räume an alle Clients senden
 function updateRoomsForAll() {
   const summary = rooms.map(r => ({ id: r.id, count: r.users.length }));
   io.emit('rooms_update', summary);
 }
 
-// Nutzer direkt beim Verbinden einem Raum zuweisen
 function assignUserToRoom(socket) {
   let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
   if (!room) {
     room = createRoom();
+    room.videoId = getRandomVideoId();
     rooms.push(room);
   }
 
@@ -62,7 +60,7 @@ function assignUserToRoom(socket) {
     nextShuffleTimestamp
   });
 
-  // 📺 Video erneut senden, falls vorhanden
+  // Sende dem Nutzer das Video seines Raums
   if (room.videoId) {
     socket.emit('video_prompt', { videoId: room.videoId });
   }
@@ -70,37 +68,34 @@ function assignUserToRoom(socket) {
   updateRoomsForAll();
 }
 
-// Nutzer regelmäßig neu durchmischen (Shuffle)
 function shuffleUsers() {
   const allUsers = Array.from(io.sockets.sockets.keys());
 
-  // Fisher-Yates Shuffle
   for (let i = allUsers.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
   }
 
   rooms = [];
+  const assignedVideoIds = [];
   let i = 0;
 
   while (i < allUsers.length) {
     const room = createRoom();
     room.users = allUsers.slice(i, i + MAX_USERS_PER_ROOM);
-
-    // 🎯 Direkt ein Video zuweisen
-    room.videoId = getRandomVideoId();
-
+    room.videoId = getRandomVideoId(assignedVideoIds);
+    assignedVideoIds.push(room.videoId);
     rooms.push(room);
     i += MAX_USERS_PER_ROOM;
   }
 
-  // Alte Räume verlassen
+  // Alle Sockets aus alten Räumen entfernen
   io.sockets.sockets.forEach(socket => {
     const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
     socketRooms.forEach(rId => socket.leave(rId));
   });
 
-  // Neue Räume zuweisen + Video an Raum senden
+  // Räume zuweisen + Video senden
   rooms.forEach(room => {
     room.users.forEach(socketId => {
       const socket = io.sockets.sockets.get(socketId);
@@ -111,9 +106,8 @@ function shuffleUsers() {
           nextShuffleTimestamp
         });
 
-        // 🎬 Nur 1x pro Raum senden (damit nicht jeder doppelt bekommt)
-        if (room.users[0] === socketId) {
-          io.to(room.id).emit('video_prompt', { videoId: room.videoId });
+        if (room.videoId) {
+          socket.emit('video_prompt', { videoId: room.videoId });
         }
       }
     });
@@ -122,10 +116,8 @@ function shuffleUsers() {
   updateRoomsForAll();
 }
 
-// Statische Dateien
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Verbindung herstellen
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
   assignUserToRoom(socket);
@@ -147,7 +139,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Shuffle-Zyklus
 function scheduleNextShuffle() {
   const now = Date.now();
   const delay = nextShuffleTimestamp - now;
@@ -165,7 +156,6 @@ function scheduleNextShuffle() {
 
 scheduleNextShuffle();
 
-// Server starten
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server läuft auf Port ${PORT}`);
