@@ -15,11 +15,11 @@ let nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
 
 // Liste mit YouTube-Video-IDs
 const videoIds = [
-  "dQw4w9WgXcQ", // Rickroll 😄
-  "kJQP7kiw5Fk", // Despacito
-  "M7lc1UVf-VE", // YouTube API Intro
-  "ZbZSe6N_BXs", // Happy - Pharrell
-  "3JZ_D3ELwOQ"  // Nyan Cat
+  "dQw4w9WgXcQ",
+  "kJQP7kiw5Fk",
+  "M7lc1UVf-VE",
+  "ZbZSe6N_BXs",
+  "3JZ_D3ELwOQ"
 ];
 
 function getRandomVideoId() {
@@ -30,7 +30,8 @@ function getRandomVideoId() {
 function createRoom() {
   return {
     id: 'room_' + Math.random().toString(36).substr(2, 9),
-    users: []
+    users: [],
+    videoId: null // 🎯 Speichere zugewiesenes Video hier
   };
 }
 
@@ -61,6 +62,11 @@ function assignUserToRoom(socket) {
     nextShuffleTimestamp
   });
 
+  // 📺 Video erneut senden, falls vorhanden
+  if (room.videoId) {
+    socket.emit('video_prompt', { videoId: room.videoId });
+  }
+
   updateRoomsForAll();
 }
 
@@ -80,19 +86,23 @@ function shuffleUsers() {
   while (i < allUsers.length) {
     const room = createRoom();
     room.users = allUsers.slice(i, i + MAX_USERS_PER_ROOM);
+
+    // 🎯 Direkt ein Video zuweisen
+    room.videoId = getRandomVideoId();
+
     rooms.push(room);
     i += MAX_USERS_PER_ROOM;
   }
 
-  // Alle Sockets aus alten Räumen entfernen
+  // Alte Räume verlassen
   io.sockets.sockets.forEach(socket => {
     const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
     socketRooms.forEach(rId => socket.leave(rId));
   });
 
-  // Räume zuweisen und Video prompt senden
+  // Neue Räume zuweisen + Video an Raum senden
   rooms.forEach(room => {
-    room.users.forEach((socketId, index) => {
+    room.users.forEach(socketId => {
       const socket = io.sockets.sockets.get(socketId);
       if (socket) {
         socket.join(room.id);
@@ -101,10 +111,9 @@ function shuffleUsers() {
           nextShuffleTimestamp
         });
 
-        // Nur einmal pro Raum an alle senden
-        if (index === 0) {
-          const videoId = getRandomVideoId();
-          io.to(room.id).emit('video_prompt', { videoId });
+        // 🎬 Nur 1x pro Raum senden (damit nicht jeder doppelt bekommt)
+        if (room.users[0] === socketId) {
+          io.to(room.id).emit('video_prompt', { videoId: room.videoId });
         }
       }
     });
