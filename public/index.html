@@ -195,8 +195,7 @@
       currentRoomId = data.roomId || null;
 
       if (data.imageUrl && data.shuffleAt) {
-        const uniqueImageUrl = `${data.imageUrl}&t=${Date.now()}`;
-	roomImage.src = uniqueImageUrl;
+        roomImage.src = data.imageUrl;
 
         if (!countdownInterval) {
           countdownInterval = setInterval(() => {
