@@ -8,6 +8,7 @@ const server = http.createServer(app);
 const io = socketIo(server);
 
 const MAX_USERS_PER_ROOM = 4;
+const MIN_USERS_PER_ROOM = 2;
 const ROOM_DURATION_MS = 10 * 60 * 1000; // 10 Minuten
 const RESHUFFLE_INTERVAL_MS = (1 * 60 + 3) * 1000; // 1:03 Minuten
 
@@ -35,7 +36,7 @@ function updateRoomsForAll() {
   io.emit('rooms_update', summary);
 }
 
-// Nutzer auf möglichst gleich große Räume verteilen
+// Nutzer auf möglichst gleich große Räume verteilen (zwischen 2 und 4 Nutzer pro Raum)
 function shuffleUsers() {
   const allUsers = Array.from(io.sockets.sockets.keys());
 
@@ -47,25 +48,45 @@ function shuffleUsers() {
 
   rooms = [];
 
-  // Optimale Gruppengröße berechnen (z. B. 6 Nutzer → 2x 3er-Räume)
   const totalUsers = allUsers.length;
-  const numRooms = Math.ceil(totalUsers / MAX_USERS_PER_ROOM);
-  const idealGroupSize = Math.ceil(totalUsers / numRooms);
+  const groups = [];
 
-  for (let i = 0; i < totalUsers; i += idealGroupSize) {
-    const group = allUsers.slice(i, i + idealGroupSize);
+  // Berechne die beste Verteilung ohne 1er-Gruppen
+  let numGroups = Math.floor(totalUsers / MIN_USERS_PER_ROOM);
+
+  while (numGroups > 0) {
+    const baseSize = Math.floor(totalUsers / numGroups);
+    const extras = totalUsers % numGroups;
+
+    if (baseSize > MAX_USERS_PER_ROOM) {
+      numGroups--;
+      continue;
+    }
+
+    let index = 0;
+    for (let i = 0; i < numGroups; i++) {
+      const size = baseSize + (i < extras ? 1 : 0);
+      const group = allUsers.slice(index, index + size);
+      groups.push(group);
+      index += size;
+    }
+    break;
+  }
+
+  // Räume erstellen aus Gruppen
+  groups.forEach(group => {
     const room = createRoom();
     room.users = group;
     rooms.push(room);
-  }
+  });
 
-  // Alte Raumzuordnungen entfernen
+  // Nutzer aus alten Räumen entfernen
   io.sockets.sockets.forEach(socket => {
     const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
     socketRooms.forEach(rId => socket.leave(rId));
   });
 
-  // Neue Raumzuweisungen durchführen
+  // Nutzer neuen Räumen zuweisen
   rooms.forEach(room => {
     room.users.forEach(socketId => {
       const socket = io.sockets.sockets.get(socketId);
@@ -148,13 +169,9 @@ function scheduleNextShuffle() {
     console.log('Shuffle users...');
     shuffleUsers();
 
-    // Neues Ziel-Zeitfenster berechnen
     nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
-
-    // Clients zentral zum Reload auffordern
     io.emit('trigger_reload');
 
-    // Nächsten Shuffle planen
     scheduleNextShuffle();
   }, delay);
 }
