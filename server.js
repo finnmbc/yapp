@@ -9,7 +9,7 @@ const io = socketIo(server);
 
 const MAX_USERS_PER_ROOM = 4;
 const ROOM_DURATION_MS = 10 * 60 * 1000; // 10 Minuten
-const RESHUFFLE_INTERVAL_MS = (1 * 60 + 3) * 1000; // 2 Minuten
+const RESHUFFLE_INTERVAL_MS = (1 * 60 + 3) * 1000; // 1:03 Minuten
 
 let rooms = [];
 let nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
@@ -35,7 +35,7 @@ function updateRoomsForAll() {
   io.emit('rooms_update', summary);
 }
 
-// Nutzer auf Räume verteilen
+// Nutzer auf möglichst gleich große Räume verteilen
 function shuffleUsers() {
   const allUsers = Array.from(io.sockets.sockets.keys());
 
@@ -47,22 +47,25 @@ function shuffleUsers() {
 
   rooms = [];
 
-  allUsers.forEach(socketId => {
-    let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
-    if (!room) {
-      room = createRoom();
-      rooms.push(room);
-    }
-    room.users.push(socketId);
-  });
+  // Optimale Gruppengröße berechnen (z. B. 6 Nutzer → 2x 3er-Räume)
+  const totalUsers = allUsers.length;
+  const numRooms = Math.ceil(totalUsers / MAX_USERS_PER_ROOM);
+  const idealGroupSize = Math.ceil(totalUsers / numRooms);
 
-  // Nutzer aus alten Räumen entfernen
+  for (let i = 0; i < totalUsers; i += idealGroupSize) {
+    const group = allUsers.slice(i, i + idealGroupSize);
+    const room = createRoom();
+    room.users = group;
+    rooms.push(room);
+  }
+
+  // Alte Raumzuordnungen entfernen
   io.sockets.sockets.forEach(socket => {
     const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
     socketRooms.forEach(rId => socket.leave(rId));
   });
 
-  // Nutzer neuen Räumen zuweisen
+  // Neue Raumzuweisungen durchführen
   rooms.forEach(room => {
     room.users.forEach(socketId => {
       const socket = io.sockets.sockets.get(socketId);
