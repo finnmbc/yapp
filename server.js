@@ -7,8 +7,9 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-const MAX_USERS_PER_ROOM = 10;
+const MAX_USERS_PER_ROOM = 4;
 const ROOM_DURATION_MS = 10 * 60 * 1000; // 10 Minuten
+const RESHUFFLE_INTERVAL_MS = 2 * 60 * 1000; // 2 Minuten
 
 let rooms = [];
 
@@ -22,13 +23,66 @@ function createRoom() {
 
 function cleanupRooms() {
   const now = Date.now();
-  rooms = rooms.filter(room => now - room.createdAt < ROOM_DURATION_MS);
+  rooms = rooms.filter(room => room.users.length > 0 && (now - room.createdAt < ROOM_DURATION_MS));
 }
 
 function updateRoomsForAll() {
-  // Sende die Raumübersicht an alle Clients
   const summary = rooms.map(r => ({ id: r.id, count: r.users.length }));
   io.emit('rooms_update', summary);
+}
+
+function assignUserToRoom(socketId) {
+  // Finde einen Raum mit weniger als MAX_USERS_PER_ROOM Nutzern
+  let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
+  if (!room) {
+    room = createRoom();
+    rooms.push(room);
+  }
+  room.users.push(socketId);
+  return room;
+}
+
+function shuffleUsers() {
+  // Alle Nutzer sammeln
+  const allUsers = rooms.flatMap(r => r.users);
+  rooms = []; // Räume resetten
+
+  // Nutzer zufällig mischen
+  for (let i = allUsers.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
+  }
+
+  // Nutzer neu auf Räume verteilen
+  allUsers.forEach(socketId => {
+    let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
+    if (!room) {
+      room = createRoom();
+      rooms.push(room);
+    }
+    room.users.push(socketId);
+  });
+
+  // Teilnehmer auch in Socket.io neu joinen lassen
+  // Zuerst alle Nutzer rauswerfen aus alten Räumen
+  io.sockets.sockets.forEach((socket) => {
+    // Entferne den Nutzer aus allen Räumen
+    const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
+    socketRooms.forEach(rId => socket.leave(rId));
+  });
+
+  // Dann jedem Nutzer neuen Raum joinen und informieren
+  rooms.forEach(room => {
+    room.users.forEach(socketId => {
+      const socket = io.sockets.sockets.get(socketId);
+      if (socket) {
+        socket.join(room.id);
+        socket.emit('joined_room', room.id);
+      }
+    });
+  });
+
+  updateRoomsForAll();
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -38,31 +92,8 @@ io.on('connection', (socket) => {
 
   cleanupRooms();
 
-  // Räume neu erzeugen, falls zu wenige vorhanden für aktuelle Nutzer
-  // Dabei Räume mit max 10 Nutzern füllen
-  const totalUsers = io.engine.clientsCount;
-
-  // Aktuell belegte Plätze zählen
-  const totalSlots = rooms.reduce((acc, r) => acc + r.users.length, 0);
-
-  if (totalSlots < totalUsers) {
-    const needed = totalUsers - totalSlots;
-    // Neue Räume anlegen, wenn nötig
-    for (let i = 0; i < needed; i++) {
-      rooms.push(createRoom());
-    }
-  }
-
-  // Nutzer einem Raum mit freiem Platz zuweisen
-  let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
-  if (!room) {
-    room = createRoom();
-    rooms.push(room);
-  }
-
-  room.users.push(socket.id);
+  const room = assignUserToRoom(socket.id);
   socket.join(room.id);
-
   socket.emit('joined_room', room.id);
 
   updateRoomsForAll();
@@ -73,16 +104,22 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
-    // Nutzer aus allen Räumen entfernen (normalerweise nur 1 Raum)
+    // Nutzer aus Raum entfernen
     rooms.forEach(r => {
       r.users = r.users.filter(u => u !== socket.id);
     });
-    // Räume ohne Nutzer entfernen
-    rooms = rooms.filter(r => r.users.length > 0);
+    // Räume ohne Nutzer löschen
+    cleanupRooms();
 
     updateRoomsForAll();
   });
 });
+
+// Timer für alle 2 Minuten Räume zufällig neu mischen
+setInterval(() => {
+  console.log('Shuffle users in rooms...');
+  shuffleUsers();
+}, RESHUFFLE_INTERVAL_MS);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
