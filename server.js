@@ -13,6 +13,19 @@ const RESHUFFLE_INTERVAL_MS = (1 * 60 + 3) * 1000;
 let rooms = [];
 let nextShuffleTimestamp = Date.now() + RESHUFFLE_INTERVAL_MS;
 
+// Liste mit YouTube-Video-IDs
+const videoIds = [
+  "dQw4w9WgXcQ", // Rickroll 😄
+  "kJQP7kiw5Fk", // Despacito
+  "M7lc1UVf-VE", // YouTube API Intro
+  "ZbZSe6N_BXs", // Happy - Pharrell
+  "3JZ_D3ELwOQ"  // Nyan Cat
+];
+
+function getRandomVideoId() {
+  return videoIds[Math.floor(Math.random() * videoIds.length)];
+}
+
 // Raum erstellen
 function createRoom() {
   return {
@@ -77,9 +90,9 @@ function shuffleUsers() {
     socketRooms.forEach(rId => socket.leave(rId));
   });
 
-  // Neue Räume zuweisen
+  // Räume zuweisen und Video prompt senden
   rooms.forEach(room => {
-    room.users.forEach(socketId => {
+    room.users.forEach((socketId, index) => {
       const socket = io.sockets.sockets.get(socketId);
       if (socket) {
         socket.join(room.id);
@@ -87,6 +100,12 @@ function shuffleUsers() {
           roomId: room.id,
           nextShuffleTimestamp
         });
+
+        // Nur einmal pro Raum an alle senden
+        if (index === 0) {
+          const videoId = getRandomVideoId();
+          io.to(room.id).emit('video_prompt', { videoId });
+        }
       }
     });
   });
