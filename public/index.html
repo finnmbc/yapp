@@ -218,8 +218,7 @@
       <div class="info">Next shuffle in <span id="countdown">--:--</span> minutes</div>
     </div>
 
-    <div class="video-column">
-    </div>
+    <div class="video-column"></div>
   </div>
 
   <div class="overlay" id="overlay">Loading new room…</div>
@@ -251,7 +250,7 @@
             const remaining = Math.max(0, data.shuffleAt - Date.now());
             const mins = Math.floor(remaining / 60000);
             const secs = Math.floor((remaining % 60000) / 1000);
-            const formatted = ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')};
+            const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
             countdownEl.textContent = formatted;
 
             if (remaining <= 30000) {
@@ -272,21 +271,22 @@
         if (room.id === currentRoomId) {
           div.classList.add('active-room');
         }
-        div.innerHTML = <strong>Room ID:</strong> ${room.id}<div class="users">${
+        div.innerHTML = `<strong>Room ID:</strong> ${room.id}<div class="users">${
           Array.from({ length: 4 }).map((_, i) =>
-            <div class="user">${i < room.count ? '👤' : '➕'}</div>).join('')
-        }</div>;
+            `<div class="user">${i < room.count ? '👤' : '➕'}</div>`
+          ).join('')
+        }</div>`;
         roomList.appendChild(div);
       });
     });
 
     socket.on('update_user_count', count => {
-      userCount.textContent = Users online: ${count};
+      userCount.textContent = `Users online: ${count}`;
     });
 
     socket.on('message', data => {
       const item = document.createElement('div');
-      item.textContent = ${data.user}: ${data.text};
+      item.textContent = `${data.user}: ${data.text}`;
       messages.appendChild(item);
       messages.scrollTop = messages.scrollHeight;
     });
