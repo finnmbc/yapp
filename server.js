@@ -8,8 +8,8 @@ const server = http.createServer(app);
 const io = socketIo(server);
 
 const MAX_USERS_PER_ROOM = 4;
-const YAPPA_EXTRA_SECONDS = 23;
-const IMAGE_DURATION_SECONDS = 10;
+const YAPPA_EXTRA_SECONDS = 30;
+const IMAGE_DURATION_SECONDS = 3;
 
 let rooms = [];
 const userRoomMap = new Map(); // socket.id → room.id
