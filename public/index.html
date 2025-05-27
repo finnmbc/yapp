@@ -76,19 +76,15 @@
 
     #imagePrompt {
       display: flex;
-      gap: 1rem;
-      margin-bottom: 1rem;
       justify-content: center;
-      flex-wrap: wrap;
+      margin-bottom: 1rem;
     }
 
     #imagePrompt img {
-      max-width: 100%;
       width: 800px;
       height: 450px;
       object-fit: cover;
       border-radius: 10px;
-      flex: 1 1 0;
     }
 
     #messages {
@@ -165,8 +161,7 @@
 
   <div class="main">
     <div id="imagePrompt">
-      <img id="img1" src="" alt="Bild 1" />
-      <img id="img2" src="" alt="Bild 2" />
+      <img id="roomImage" src="" alt="Bild wird geladen..." />
     </div>
     <div id="messages"></div>
     <form id="form">
@@ -188,8 +183,7 @@
     const roomList = document.getElementById('roomList');
     const countdownEl = document.getElementById('countdown');
     const overlay = document.getElementById('overlay');
-    const img1 = document.getElementById('img1');
-    const img2 = document.getElementById('img2');
+    const roomImage = document.getElementById('roomImage');
 
     let countdownInterval = null;
     let hasReloaded = false;
@@ -198,9 +192,8 @@
     socket.on('joined_room', data => {
       currentRoomId = data.roomId || null;
 
-      if (data.imageUrls && data.shuffleAt) {
-        img1.src = data.imageUrls[0];
-        img2.src = data.imageUrls[1];
+      if (data.imageUrl && data.shuffleAt) {
+        roomImage.src = data.imageUrl;
 
         if (!countdownInterval) {
           countdownInterval = setInterval(() => {
