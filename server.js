@@ -19,10 +19,10 @@ function getRandomImageSeed() {
   return Math.floor(Math.random() * 1000000);
 }
 
-// 🆕 Gemeinsamer Shuffle-Zeitpunkt
+// 🆕 Gemeinsamer Shuffle-Zeitpunkt für alle Räume
 function getCurrentShuffleTime() {
   if (rooms.length > 0) {
-    return rooms[0].shuffleAt; // übernehme Zeit des ersten Raums
+    return rooms[0].shuffleAt;
   }
   const now = Date.now();
   return now + 1000 * (IMAGE_DURATION_SECONDS + YAPPA_EXTRA_SECONDS);
@@ -39,7 +39,7 @@ function createRoom() {
     imageSeed: seed,
     imageUrl: `https://picsum.photos/seed/${seed}/800/450`,
     imageStart: now,
-    shuffleAt: shuffleAt
+    shuffleAt
   };
 }
 
@@ -63,6 +63,11 @@ function updateRoomsForAll() {
   io.emit('rooms_update', summary);
 }
 
+// 🆕 Anzahl der verbundenen Nutzer senden
+function broadcastUserCount() {
+  io.emit('update_user_count', io.engine.clientsCount);
+}
+
 function assignUserToRoom(socket) {
   const existingRoomId = userRoomMap.get(socket.id);
   const existingRoom = rooms.find(r => r.id === existingRoomId);
@@ -80,7 +85,8 @@ function assignUserToRoom(socket) {
       shuffleAt: existingRoom.shuffleAt
     });
 
-    return updateRoomsForAll();
+    updateRoomsForAll();
+    return;
   }
 
   let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
@@ -164,7 +170,7 @@ function monitorShuffleTimers() {
     const due = rooms.find(r => r.shuffleAt && now >= r.shuffleAt);
 
     if (due) {
-      console.log("🔄 Shuffle ausgelöst.");
+      console.log("🔄 Shuffle triggered.");
       shuffleUsers();
       io.emit('trigger_reload');
     }
@@ -176,6 +182,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
   assignUserToRoom(socket);
+  broadcastUserCount();
 
   socket.on('message', (msg) => {
     const userRoomId = userRoomMap.get(socket.id);
@@ -197,6 +204,7 @@ io.on('connection', (socket) => {
     }
 
     updateRoomsForAll();
+    broadcastUserCount();
   });
 });
 
@@ -204,5 +212,5 @@ monitorShuffleTimers();
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server läuft auf Port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });

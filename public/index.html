@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -15,15 +15,15 @@
       color: #333;
       overflow: hidden;
       min-width: 0;
-	  display: flex;
-	  justify-content: center;
-	  align-items: stretch;
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
     }
 
     .layout {
       display: flex;
-	  width: 100%;
-	  max-width: 2000px;
+      width: 100%;
+      max-width: 2000px;
       height: 100%;
     }
 
@@ -38,6 +38,12 @@
 
     .sidebar h2 {
       font-size: 1.3rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .sidebar .user-count {
+      font-size: 0.95rem;
+      color: #555;
       margin-bottom: 1rem;
     }
 
@@ -83,6 +89,14 @@
       display: flex;
       justify-content: center;
       margin-bottom: 1rem;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #imagePrompt p {
+      font-size: 1rem;
+      color: #444;
+      margin-bottom: 0.5rem;
     }
 
     #imagePrompt img {
@@ -164,27 +178,29 @@
 <body>
   <div class="layout">
     <div class="sidebar">
-      <h2>Räume</h2>
+      <h2>Rooms</h2>
+      <div class="user-count" id="userCount">Users online: --</div>
       <div id="roomList"></div>
     </div>
 
     <div class="main">
       <div id="imagePrompt">
-        <img id="roomImage" src="" alt="Bild wird geladen..." />
+        <p>Start yapping about this picture!</p>
+        <img id="roomImage" src="" alt="Loading image..." />
       </div>
       <div id="messages"></div>
       <form id="form">
-        <input id="input" autocomplete="off" placeholder="Nachricht schreiben..." />
-        <button>Yappen</button>
+        <input id="input" autocomplete="off" placeholder="Write a message..." />
+        <button>Yap</button>
       </form>
-      <div class="info">Nächster Shuffle in <span id="countdown">--:--</span> Minuten</div>
+      <div class="info">Next shuffle in <span id="countdown">--:--</span> minutes</div>
     </div>
 
     <div class="video-column">
     </div>
   </div>
 
-  <div class="overlay" id="overlay">Neuer Raum wird geladen…</div>
+  <div class="overlay" id="overlay">Loading new room…</div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -196,6 +212,7 @@
     const countdownEl = document.getElementById('countdown');
     const overlay = document.getElementById('overlay');
     const roomImage = document.getElementById('roomImage');
+    const userCount = document.getElementById('userCount');
 
     let countdownInterval = null;
     let hasReloaded = false;
@@ -213,15 +230,13 @@
             const mins = Math.floor(remaining / 60000);
             const secs = Math.floor((remaining % 60000) / 1000);
             const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-			countdownEl.textContent = formatted;
+            countdownEl.textContent = formatted;
 
-			// Farbe ändern, wenn < 30 Sekunden
-			if (remaining <= 30000) {
-			  countdownEl.style.color = 'red';
-			} else {
-			  countdownEl.style.color = '';
-			}
-
+            if (remaining <= 30000) {
+              countdownEl.style.color = 'red';
+            } else {
+              countdownEl.style.color = '';
+            }
           }, 1000);
         }
       }
@@ -235,12 +250,16 @@
         if (room.id === currentRoomId) {
           div.classList.add('active-room');
         }
-        div.innerHTML = `<strong>Raum-ID:</strong> ${room.id}<div class="users">${
+        div.innerHTML = `<strong>Room ID:</strong> ${room.id}<div class="users">${
           Array.from({ length: 4 }).map((_, i) =>
             `<div class="user">${i < room.count ? '👤' : '➕'}</div>`).join('')
         }</div>`;
         roomList.appendChild(div);
       });
+    });
+
+    socket.on('update_user_count', count => {
+      userCount.textContent = `Users online: ${count}`;
     });
 
     socket.on('message', data => {
