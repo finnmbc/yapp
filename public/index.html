@@ -13,9 +13,18 @@
       font-family: 'Inter', sans-serif;
       background: #f4f5f7;
       color: #333;
-      display: flex;
       overflow: hidden;
       min-width: 0;
+	  display: flex;
+	  justify-content: center;
+	  align-items: stretch;
+    }
+
+    .layout {
+      display: flex;
+	  width: 100%;
+	  max-width: 1200px;
+      height: 100%;
     }
 
     .sidebar {
@@ -24,7 +33,7 @@
       border-right: 1px solid #ddd;
       padding: 1rem;
       overflow-y: auto;
-      flex-shrink: 2; /* wird zuerst abgeschnitten */
+      flex-shrink: 2;
     }
 
     .sidebar h2 {
@@ -135,7 +144,7 @@
       background: #fff;
       border-left: 1px solid #ddd;
       padding: 1rem;
-      flex-shrink: 0; /* bleibt immer sichtbar */
+      flex-shrink: 0;
     }
 
     .overlay {
@@ -153,25 +162,27 @@
   </style>
 </head>
 <body>
-  <div class="sidebar">
-    <h2>Räume</h2>
-    <div id="roomList"></div>
-  </div>
-
-  <div class="main">
-    <div id="imagePrompt">
-      <img id="roomImage" src="" alt="Bild wird geladen..." />
+  <div class="layout">
+    <div class="sidebar">
+      <h2>Räume</h2>
+      <div id="roomList"></div>
     </div>
-    <div id="messages"></div>
-    <form id="form">
-      <input id="input" autocomplete="off" placeholder="Nachricht schreiben..." />
-      <button>Yappen</button>
-    </form>
-    <div class="info">Nächster Shuffle in <span id="countdown">--:--</span> Minuten</div>
-  </div>
 
-  <div class="video-column">
-    <p>🔒 Immer sichtbar – rechte Spalte</p>
+    <div class="main">
+      <div id="imagePrompt">
+        <img id="roomImage" src="" alt="Bild wird geladen..." />
+      </div>
+      <div id="messages"></div>
+      <form id="form">
+        <input id="input" autocomplete="off" placeholder="Nachricht schreiben..." />
+        <button>Yappen</button>
+      </form>
+      <div class="info">Nächster Shuffle in <span id="countdown">--:--</span> Minuten</div>
+    </div>
+
+    <div class="video-column">
+      <p>🔒 Immer sichtbar – rechte Spalte</p>
+    </div>
   </div>
 
   <div class="overlay" id="overlay">Neuer Raum wird geladen…</div>
