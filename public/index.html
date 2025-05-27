@@ -16,13 +16,15 @@
       color: #333;
     }
 
-    @media (max-width: 1000px) {
+    @media (max-width: 1300px) {
       body {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto 1fr auto;
+        grid-template-columns: 0 1fr 300px; /* verstecke sidebar */
       }
-      .sidebar, .video-column {
-        display: none;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        grid-template-columns: 0 1fr 0; /* zeige nur noch rechte spalte */
       }
     }
 
@@ -116,7 +118,7 @@
 
     button {
       padding: 0.8rem 1rem;
-      background: #007bff;
+      background: #888;
       color: white;
       border: none;
       border-radius: 8px;
@@ -124,7 +126,7 @@
     }
 
     button:hover {
-      background: #0056b3;
+      background: #666;
     }
 
     .info {
@@ -166,12 +168,16 @@
     <div id="messages"></div>
     <form id="form">
       <input id="input" autocomplete="off" placeholder="Nachricht schreiben..." />
-      <button>Senden</button>
+      <button>Yappen</button>
     </form>
     <div class="info">Nächster Shuffle in <span id="countdown">--:--</span> Minuten</div>
   </div>
 
-  <div class="video-column"></div>
+  <div class="video-column">
+    <!-- Priorisierte Spalte -->
+    <p>🔒 Immer sichtbar – rechte Spalte</p>
+  </div>
+
   <div class="overlay" id="overlay">Neuer Raum wird geladen…</div>
 
   <script src="/socket.io/socket.io.js"></script>
