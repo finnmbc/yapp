@@ -141,6 +141,17 @@
       margin-bottom: 0.6rem;
     }
 
+    .chat-username {
+      font-weight: 600;
+      color: #007bff;
+      cursor: pointer;
+      margin-right: 0.3rem;
+    }
+
+    .chat-username:hover {
+      text-decoration: underline;
+    }
+
     form {
       display: flex;
       gap: 0.5rem;
@@ -243,24 +254,22 @@
     socket.on('joined_room', data => {
       currentRoomId = data.roomId || null;
 
-      if (data.imageUrl && data.shuffleAt) {
+      if (data.imageUrl) {
         roomImage.src = data.imageUrl;
+      }
 
-        if (!countdownInterval) {
-          countdownInterval = setInterval(() => {
-            const remaining = Math.max(0, data.shuffleAt - Date.now());
-            const mins = Math.floor(remaining / 60000);
-            const secs = Math.floor((remaining % 60000) / 1000);
-            const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-            countdownEl.textContent = formatted;
-
-            if (remaining <= 30000) {
-              countdownEl.style.color = 'red';
-            } else {
-              countdownEl.style.color = '';
-            }
-          }, 1000);
-        }
+      if (data.shuffleAt && !countdownInterval) {
+        countdownInterval = setInterval(() => {
+          const remaining = Math.max(0, data.shuffleAt - Date.now());
+          const mins = Math.floor(remaining / 60000);
+          const secs = Math.floor((remaining % 60000) / 1000);
+          const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+          countdownEl.textContent = formatted;
+          countdownEl.style.color = remaining <= 30000 ? 'red' : '';
+        }, 1000);
+      } else if (!data.shuffleAt) {
+        countdownEl.textContent = '--:--';
+        countdownEl.style.color = '';
       }
     });
 
@@ -269,10 +278,9 @@
       roomData.forEach(room => {
         const div = document.createElement('div');
         div.className = 'room';
-        if (room.id === currentRoomId) {
-          div.classList.add('active-room');
-        }
-        div.innerHTML = `<strong>Room ID:</strong> ${room.id}<div class="users">${
+        if (room.id === currentRoomId) div.classList.add('active-room');
+        div.innerHTML = `${room.id.startsWith('private_') ? '🔒 ' : ''}<strong>Room ID:</strong> ${room.id}
+        <div class="users">${
           Array.from({ length: 4 }).map((_, i) =>
             `<div class="user">${i < room.count ? '👤' : '➕'}</div>`).join('')
         }</div>`;
@@ -285,10 +293,26 @@
     });
 
     socket.on('message', data => {
-      const item = document.createElement('div');
-      item.textContent = `${data.user}: ${data.text}`;
-      messages.appendChild(item);
+      const wrapper = document.createElement('div');
+
+      const name = document.createElement('span');
+      name.textContent = data.user;
+      name.className = 'chat-username';
+      name.onclick = () => {
+        if (confirm(`Invite ${data.user} to a private room?`)) {
+          socket.emit('invite_private', data.user);
+        }
+      };
+
+      wrapper.appendChild(name);
+      wrapper.append(`: ${data.text}`);
+      messages.appendChild(wrapper);
       messages.scrollTop = messages.scrollHeight;
+    });
+
+    socket.on('private_invite', ({ from }) => {
+      const accept = confirm(`User ${from} invited you to a private room. Accept?`);
+      socket.emit(accept ? 'accept_private' : 'reject_private', from);
     });
 
     socket.on('trigger_reload', () => {

@@ -19,28 +19,25 @@ function getRandomImageSeed() {
   return Math.floor(Math.random() * 1000000);
 }
 
-// 🆕 Gemeinsamer Shuffle-Zeitpunkt für alle Räume
 function getCurrentShuffleTime() {
-  if (rooms.length > 0) {
-    return rooms[0].shuffleAt;
-  }
+  if (rooms.length > 0) return rooms[0].shuffleAt;
   const now = Date.now();
   return now + 1000 * (IMAGE_DURATION_SECONDS + YAPPA_EXTRA_SECONDS);
 }
 
-function createRoom() {
+function createRoom(isPrivate = false, userIds = []) {
   const now = Date.now();
   const seed = getRandomImageSeed();
-  const shuffleAt = getCurrentShuffleTime();
-
-  return {
-    id: 'room_' + Math.random().toString(36).substr(2, 9),
-    users: [],
+  const room = {
+    id: (isPrivate ? 'private_' : 'room_') + Math.random().toString(36).substr(2, 9),
+    users: userIds,
     imageSeed: seed,
     imageUrl: `https://picsum.photos/seed/${seed}/800/450`,
     imageStart: now,
-    shuffleAt
+    shuffleAt: isPrivate ? null : getCurrentShuffleTime(),
+    isPrivate
   };
+  return room;
 }
 
 function cleanupRoomsDelayed(roomId) {
@@ -59,11 +56,12 @@ function cleanupRoomsDelayed(roomId) {
 }
 
 function updateRoomsForAll() {
-  const summary = rooms.map(r => ({ id: r.id, count: r.users.length }));
+  const summary = rooms
+    .filter(r => !r.isPrivate)
+    .map(r => ({ id: r.id, count: r.users.length }));
   io.emit('rooms_update', summary);
 }
 
-// 🆕 Anzahl der verbundenen Nutzer senden
 function broadcastUserCount() {
   io.emit('update_user_count', io.engine.clientsCount);
 }
@@ -89,7 +87,7 @@ function assignUserToRoom(socket) {
     return;
   }
 
-  let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
+  let room = rooms.find(r => !r.isPrivate && r.users.length < MAX_USERS_PER_ROOM);
   if (!room) {
     room = createRoom();
     rooms.push(room);
@@ -112,13 +110,12 @@ function assignUserToRoom(socket) {
 function shuffleUsers() {
   const allUsers = Array.from(io.sockets.sockets.keys());
 
-  // Fisher-Yates Shuffle
   for (let i = allUsers.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
   }
 
-  rooms = [];
+  rooms = rooms.filter(r => r.isPrivate); // private rooms bleiben bestehen
   userRoomMap.clear();
   roomTimeouts.clear();
 
@@ -134,7 +131,8 @@ function shuffleUsers() {
       imageSeed: seed,
       imageUrl: `https://picsum.photos/seed/${seed}/800/450`,
       imageStart: now,
-      shuffleAt: sharedShuffleAt
+      shuffleAt: sharedShuffleAt,
+      isPrivate: false
     };
     rooms.push(room);
     i += MAX_USERS_PER_ROOM;
@@ -167,7 +165,7 @@ function shuffleUsers() {
 function monitorShuffleTimers() {
   setInterval(() => {
     const now = Date.now();
-    const due = rooms.find(r => r.shuffleAt && now >= r.shuffleAt);
+    const due = rooms.find(r => !r.isPrivate && r.shuffleAt && now >= r.shuffleAt);
 
     if (due) {
       console.log("🔄 Shuffle triggered.");
@@ -189,6 +187,36 @@ io.on('connection', (socket) => {
     if (userRoomId) {
       io.to(userRoomId).emit('message', { user: socket.id, text: msg });
     }
+  });
+
+  socket.on('invite_private', (targetId) => {
+    const targetSocket = io.sockets.sockets.get(targetId);
+    if (targetSocket) {
+      targetSocket.emit('private_invite', { from: socket.id });
+    }
+  });
+
+  socket.on('accept_private', (inviterId) => {
+    const inviterSocket = io.sockets.sockets.get(inviterId);
+    if (!inviterSocket) return;
+
+    const privateRoom = createRoom(true, [socket.id, inviterId]);
+    rooms.push(privateRoom);
+
+    [socket, inviterSocket].forEach(s => {
+      if (s) {
+        userRoomMap.set(s.id, privateRoom.id);
+        s.join(privateRoom.id);
+        s.emit('joined_room', {
+          roomId: privateRoom.id,
+          imageUrl: privateRoom.imageUrl,
+          imageStart: privateRoom.imageStart,
+          shuffleAt: null
+        });
+      }
+    });
+
+    updateRoomsForAll();
   });
 
   socket.on('disconnect', () => {
