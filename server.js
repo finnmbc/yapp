@@ -19,7 +19,6 @@ function getRandomImageSeed() {
   return Math.floor(Math.random() * 1000000);
 }
 
-// 🆕 Gemeinsamer Shuffle-Zeitpunkt für alle Räume
 function getCurrentShuffleTime() {
   if (rooms.length > 0) {
     return rooms[0].shuffleAt;
@@ -63,7 +62,6 @@ function updateRoomsForAll() {
   io.emit('rooms_update', summary);
 }
 
-// 🆕 Anzahl der verbundenen Nutzer senden
 function broadcastUserCount() {
   io.emit('update_user_count', io.engine.clientsCount);
 }
@@ -112,7 +110,6 @@ function assignUserToRoom(socket) {
 function shuffleUsers() {
   const allUsers = Array.from(io.sockets.sockets.keys());
 
-  // Fisher-Yates Shuffle
   for (let i = allUsers.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
@@ -132,7 +129,7 @@ function shuffleUsers() {
       id: 'room_' + Math.random().toString(36).substr(2, 9),
       users: allUsers.slice(i, i + MAX_USERS_PER_ROOM),
       imageSeed: seed,
-      imageUrl: https://picsum.photos/seed/${seed}/800/450,
+      imageUrl: `https://picsum.photos/seed/${seed}/800/450`,
       imageStart: now,
       shuffleAt: sharedShuffleAt
     };
@@ -212,5 +209,5 @@ monitorShuffleTimers();
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(🚀 Server running on port ${PORT});
+  console.log(`🚀 Server running on port ${PORT}`);
 });
