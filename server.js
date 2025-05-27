@@ -9,7 +9,7 @@ const io = socketIo(server);
 
 const MAX_USERS_PER_ROOM = 4;
 const YAPPA_EXTRA_SECONDS = 300;
-const IMAGE_DURATION_SECONDS = 3;
+const IMAGE_DURATION_SECONDS = 2;
 
 let rooms = [];
 const userRoomMap = new Map(); // socket.id → room.id
@@ -19,16 +19,27 @@ function getRandomImageSeed() {
   return Math.floor(Math.random() * 1000000);
 }
 
+// 🆕 Gemeinsamer Shuffle-Zeitpunkt
+function getCurrentShuffleTime() {
+  if (rooms.length > 0) {
+    return rooms[0].shuffleAt; // übernehme Zeit des ersten Raums
+  }
+  const now = Date.now();
+  return now + 1000 * (IMAGE_DURATION_SECONDS + YAPPA_EXTRA_SECONDS);
+}
+
 function createRoom() {
   const now = Date.now();
   const seed = getRandomImageSeed();
+  const shuffleAt = getCurrentShuffleTime();
+
   return {
     id: 'room_' + Math.random().toString(36).substr(2, 9),
     users: [],
     imageSeed: seed,
     imageUrl: `https://picsum.photos/seed/${seed}/800/450`,
     imageStart: now,
-    shuffleAt: now + 1000 * (IMAGE_DURATION_SECONDS + YAPPA_EXTRA_SECONDS)
+    shuffleAt: shuffleAt
   };
 }
 
@@ -95,6 +106,7 @@ function assignUserToRoom(socket) {
 function shuffleUsers() {
   const allUsers = Array.from(io.sockets.sockets.keys());
 
+  // Fisher-Yates Shuffle
   for (let i = allUsers.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
@@ -104,10 +116,20 @@ function shuffleUsers() {
   userRoomMap.clear();
   roomTimeouts.clear();
 
+  const now = Date.now();
+  const sharedShuffleAt = now + 1000 * (IMAGE_DURATION_SECONDS + YAPPA_EXTRA_SECONDS);
+
   let i = 0;
   while (i < allUsers.length) {
-    const room = createRoom();
-    room.users = allUsers.slice(i, i + MAX_USERS_PER_ROOM);
+    const seed = getRandomImageSeed();
+    const room = {
+      id: 'room_' + Math.random().toString(36).substr(2, 9),
+      users: allUsers.slice(i, i + MAX_USERS_PER_ROOM),
+      imageSeed: seed,
+      imageUrl: `https://picsum.photos/seed/${seed}/800/450`,
+      imageStart: now,
+      shuffleAt: sharedShuffleAt
+    };
     rooms.push(room);
     i += MAX_USERS_PER_ROOM;
   }
