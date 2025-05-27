@@ -23,7 +23,7 @@
     .layout {
       display: flex;
 	  width: 100%;
-	  max-width: 1400px;
+	  max-width: 1600px;
       height: 100%;
     }
 
@@ -212,7 +212,16 @@
             const remaining = Math.max(0, data.shuffleAt - Date.now());
             const mins = Math.floor(remaining / 60000);
             const secs = Math.floor((remaining % 60000) / 1000);
-            countdownEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+			countdownEl.textContent = formatted;
+
+			// Farbe ändern, wenn < 30 Sekunden
+			if (remaining <= 30000) {
+			  countdownEl.style.color = 'red';
+			} else {
+			  countdownEl.style.color = '';
+			}
+
           }, 1000);
         }
       }
