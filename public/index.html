@@ -79,14 +79,16 @@
       gap: 1rem;
       margin-bottom: 1rem;
       justify-content: center;
+      flex-wrap: wrap;
     }
 
     #imagePrompt img {
+      max-width: 100%;
       width: 800px;
       height: 450px;
-      object-fit: none;
+      object-fit: cover;
       border-radius: 10px;
-      display: block;
+      flex: 1 1 0;
     }
 
     #messages {
