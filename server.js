@@ -8,23 +8,24 @@ const server = http.createServer(app);
 const io = socketIo(server);
 
 const MAX_USERS_PER_ROOM = 4;
-const YAPPA_EXTRA_SECONDS = 23;           // Nachbesprechzeit
-const IMAGE_DURATION_SECONDS = 10;        // Dauer zur Bildbetrachtung
+const YAPPA_EXTRA_SECONDS = 23;
+const IMAGE_DURATION_SECONDS = 10;
 
 let rooms = [];
+const userRoomMap = new Map(); // socket.id → room.id
 
-// 🔁 Liefert zufällige Bild-URL von picsum.photos
-function getRandomImageUrl() {
-  const seed = Math.floor(Math.random() * 1000000);
-  return `https://picsum.photos/800/450?random=${seed}`;
+function getRandomImageSeed() {
+  return Math.floor(Math.random() * 1000000);
 }
 
 function createRoom() {
   const now = Date.now();
+  const seed = getRandomImageSeed();
   return {
     id: 'room_' + Math.random().toString(36).substr(2, 9),
     users: [],
-    imageUrl: getRandomImageUrl(),
+    imageSeed: seed,
+    imageUrl: `https://picsum.photos/seed/${seed}/800/450`,
     imageStart: now,
     shuffleAt: now + 1000 * (IMAGE_DURATION_SECONDS + YAPPA_EXTRA_SECONDS)
   };
@@ -40,6 +41,21 @@ function updateRoomsForAll() {
 }
 
 function assignUserToRoom(socket) {
+  const existingRoomId = userRoomMap.get(socket.id);
+  const existingRoom = rooms.find(r => r.id === existingRoomId);
+
+  if (existingRoom) {
+    existingRoom.users.push(socket.id);
+    socket.join(existingRoom.id);
+    socket.emit('joined_room', {
+      roomId: existingRoom.id,
+      imageUrl: existingRoom.imageUrl,
+      imageStart: existingRoom.imageStart,
+      shuffleAt: existingRoom.shuffleAt
+    });
+    return updateRoomsForAll();
+  }
+
   let room = rooms.find(r => r.users.length < MAX_USERS_PER_ROOM);
   if (!room) {
     room = createRoom();
@@ -47,6 +63,7 @@ function assignUserToRoom(socket) {
   }
 
   room.users.push(socket.id);
+  userRoomMap.set(socket.id, room.id);
   socket.join(room.id);
 
   socket.emit('joined_room', {
@@ -62,15 +79,15 @@ function assignUserToRoom(socket) {
 function shuffleUsers() {
   const allUsers = Array.from(io.sockets.sockets.keys());
 
-  // Shuffle User
   for (let i = allUsers.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
   }
 
   rooms = [];
-  let i = 0;
+  userRoomMap.clear();
 
+  let i = 0;
   while (i < allUsers.length) {
     const room = createRoom();
     room.users = allUsers.slice(i, i + MAX_USERS_PER_ROOM);
@@ -78,18 +95,17 @@ function shuffleUsers() {
     i += MAX_USERS_PER_ROOM;
   }
 
-  // Alle Nutzer aus alten Räumen entfernen
   io.sockets.sockets.forEach(socket => {
     const socketRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
     socketRooms.forEach(rId => socket.leave(rId));
   });
 
-  // Räume zuweisen
   rooms.forEach(room => {
     room.users.forEach(socketId => {
       const socket = io.sockets.sockets.get(socketId);
       if (socket) {
         socket.join(room.id);
+        userRoomMap.set(socket.id, room.id);
         socket.emit('joined_room', {
           roomId: room.id,
           imageUrl: room.imageUrl,
@@ -103,7 +119,6 @@ function shuffleUsers() {
   updateRoomsForAll();
 }
 
-// ⏳ Überwachung & Shuffle-Auslösung
 function monitorShuffleTimers() {
   setInterval(() => {
     const now = Date.now();
@@ -117,7 +132,6 @@ function monitorShuffleTimers() {
   }, 1000);
 }
 
-// 📁 Static
 app.use(express.static(path.join(__dirname, 'public')));
 
 io.on('connection', (socket) => {
@@ -133,6 +147,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('❌ User disconnected:', socket.id);
+    userRoomMap.delete(socket.id);
     rooms.forEach(r => {
       r.users = r.users.filter(u => u !== socket.id);
     });
@@ -141,7 +156,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// 🚀 Start
 monitorShuffleTimers();
 
 const PORT = process.env.PORT || 3000;

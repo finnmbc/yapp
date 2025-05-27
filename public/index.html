@@ -195,7 +195,9 @@
       currentRoomId = data.roomId || null;
 
       if (data.imageUrl && data.shuffleAt) {
-        roomImage.src = data.imageUrl;
+        if (!roomImage.src || roomImage.src !== data.imageUrl) {
+          roomImage.src = data.imageUrl;
+        }
 
         if (!countdownInterval) {
           countdownInterval = setInterval(() => {
