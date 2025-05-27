@@ -75,13 +75,16 @@
     }
 
     #imagePrompt {
+      display: flex;
+      gap: 1rem;
       margin-bottom: 1rem;
+      justify-content: center;
     }
 
     #imagePrompt img {
-      width: 100%;
-      height: 60vh;
-      object-fit: cover;
+      width: 800px;
+      height: 450px;
+      object-fit: none;
       border-radius: 10px;
       display: block;
     }
@@ -160,7 +163,8 @@
 
   <div class="main">
     <div id="imagePrompt">
-      <img id="roomImage" src="" alt="Zufallsbild wird geladen..." />
+      <img id="img1" src="" alt="Bild 1" />
+      <img id="img2" src="" alt="Bild 2" />
     </div>
     <div id="messages"></div>
     <form id="form">
@@ -170,10 +174,7 @@
     <div class="info">Nächster Shuffle in <span id="countdown">--:--</span> Minuten</div>
   </div>
 
-  <div class="video-column">
-    <!-- Platz für Werbung o.Ä. -->
-  </div>
-
+  <div class="video-column"></div>
   <div class="overlay" id="overlay">Neuer Raum wird geladen…</div>
 
   <script src="/socket.io/socket.io.js"></script>
@@ -185,7 +186,8 @@
     const roomList = document.getElementById('roomList');
     const countdownEl = document.getElementById('countdown');
     const overlay = document.getElementById('overlay');
-    const roomImage = document.getElementById('roomImage');
+    const img1 = document.getElementById('img1');
+    const img2 = document.getElementById('img2');
 
     let countdownInterval = null;
     let hasReloaded = false;
@@ -194,10 +196,9 @@
     socket.on('joined_room', data => {
       currentRoomId = data.roomId || null;
 
-      if (data.imageUrl && data.shuffleAt) {
-        if (!roomImage.src || roomImage.src !== data.imageUrl) {
-          roomImage.src = data.imageUrl;
-        }
+      if (data.imageUrls && data.shuffleAt) {
+        img1.src = data.imageUrls[0];
+        img2.src = data.imageUrls[1];
 
         if (!countdownInterval) {
           countdownInterval = setInterval(() => {

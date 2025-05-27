@@ -13,6 +13,7 @@ const IMAGE_DURATION_SECONDS = 10;
 
 let rooms = [];
 const userRoomMap = new Map(); // socket.id → room.id
+const roomTimeouts = new Map(); // room.id → Timeout-Handle
 
 function getRandomImageSeed() {
   return Math.floor(Math.random() * 1000000);
@@ -20,19 +21,35 @@ function getRandomImageSeed() {
 
 function createRoom() {
   const now = Date.now();
-  const seed = getRandomImageSeed();
+  const seed1 = getRandomImageSeed();
+  const seed2 = getRandomImageSeed();
   return {
     id: 'room_' + Math.random().toString(36).substr(2, 9),
     users: [],
-    imageSeed: seed,
-    imageUrl: `https://picsum.photos/seed/${seed}/800/450`,
+    imageSeeds: [seed1, seed2],
+    imageUrls: [
+      `https://picsum.photos/seed/${seed1}/800/450`,
+      `https://picsum.photos/seed/${seed2}/800/450`
+    ],
     imageStart: now,
     shuffleAt: now + 1000 * (IMAGE_DURATION_SECONDS + YAPPA_EXTRA_SECONDS)
   };
 }
 
-function cleanupRooms() {
-  rooms = rooms.filter(room => room.users.length > 0);
+function cleanupRoomsDelayed(roomId) {
+  // Falls bereits Timeout läuft, ignorieren
+  if (roomTimeouts.has(roomId)) return;
+
+  const timeout = setTimeout(() => {
+    const room = rooms.find(r => r.id === roomId);
+    if (room && room.users.length === 0) {
+      rooms = rooms.filter(r => r.id !== roomId);
+      roomTimeouts.delete(roomId);
+      updateRoomsForAll();
+    }
+  }, 3000); // 3 Sekunden
+
+  roomTimeouts.set(roomId, timeout);
 }
 
 function updateRoomsForAll() {
@@ -47,12 +64,16 @@ function assignUserToRoom(socket) {
   if (existingRoom) {
     existingRoom.users.push(socket.id);
     socket.join(existingRoom.id);
+    clearTimeout(roomTimeouts.get(existingRoom.id));
+    roomTimeouts.delete(existingRoom.id);
+
     socket.emit('joined_room', {
       roomId: existingRoom.id,
-      imageUrl: existingRoom.imageUrl,
+      imageUrls: existingRoom.imageUrls,
       imageStart: existingRoom.imageStart,
       shuffleAt: existingRoom.shuffleAt
     });
+
     return updateRoomsForAll();
   }
 
@@ -68,7 +89,7 @@ function assignUserToRoom(socket) {
 
   socket.emit('joined_room', {
     roomId: room.id,
-    imageUrl: room.imageUrl,
+    imageUrls: room.imageUrls,
     imageStart: room.imageStart,
     shuffleAt: room.shuffleAt
   });
@@ -86,6 +107,7 @@ function shuffleUsers() {
 
   rooms = [];
   userRoomMap.clear();
+  roomTimeouts.clear();
 
   let i = 0;
   while (i < allUsers.length) {
@@ -106,9 +128,10 @@ function shuffleUsers() {
       if (socket) {
         socket.join(room.id);
         userRoomMap.set(socket.id, room.id);
+
         socket.emit('joined_room', {
           roomId: room.id,
-          imageUrl: room.imageUrl,
+          imageUrls: room.imageUrls,
           imageStart: room.imageStart,
           shuffleAt: room.shuffleAt
         });
@@ -139,19 +162,24 @@ io.on('connection', (socket) => {
   assignUserToRoom(socket);
 
   socket.on('message', (msg) => {
-    const userRoom = Array.from(socket.rooms).find(r => r !== socket.id);
-    if (userRoom) {
-      io.to(userRoom).emit('message', { user: socket.id, text: msg });
+    const userRoomId = userRoomMap.get(socket.id);
+    if (userRoomId) {
+      io.to(userRoomId).emit('message', { user: socket.id, text: msg });
     }
   });
 
   socket.on('disconnect', () => {
     console.log('❌ User disconnected:', socket.id);
+
+    const roomId = userRoomMap.get(socket.id);
     userRoomMap.delete(socket.id);
-    rooms.forEach(r => {
-      r.users = r.users.filter(u => u !== socket.id);
-    });
-    cleanupRooms();
+
+    const room = rooms.find(r => r.id === roomId);
+    if (room) {
+      room.users = room.users.filter(u => u !== socket.id);
+      cleanupRoomsDelayed(roomId);
+    }
+
     updateRoomsForAll();
   });
 });
