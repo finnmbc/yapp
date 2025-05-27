@@ -15,6 +15,7 @@
       color: #333;
       display: flex;
       overflow: hidden;
+      min-width: 0;
     }
 
     .sidebar {
@@ -23,19 +24,46 @@
       border-right: 1px solid #ddd;
       padding: 1rem;
       overflow-y: auto;
-      flex-shrink: 2; /* wird zuerst kleiner */
+      flex-shrink: 2; /* wird zuerst abgeschnitten */
+    }
+
+    .sidebar h2 {
+      font-size: 1.3rem;
+      margin-bottom: 1rem;
+    }
+
+    .room {
+      margin-bottom: 1.2rem;
+      padding: 0.8rem;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      background: #fafafa;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .room.active-room {
+      border-color: #007bff;
+      background: #e6f0ff;
+    }
+
+    .users {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .user {
+      text-align: center;
+      font-size: 1.3rem;
+      background: #e9f1ff;
+      padding: 0.5rem;
+      border-radius: 8px;
     }
 
     .main {
       flex: 1;
-      display: flex;
-      justify-content: center;
-      overflow: hidden;
-    }
-
-    .main-inner {
-      width: 100%;
-      max-width: 900px;
+      min-width: 0;
       display: flex;
       flex-direction: column;
       padding: 1rem;
@@ -107,7 +135,7 @@
       background: #fff;
       border-left: 1px solid #ddd;
       padding: 1rem;
-      flex-shrink: 0; /* nie kleiner werden */
+      flex-shrink: 0; /* bleibt immer sichtbar */
     }
 
     .overlay {
@@ -131,17 +159,15 @@
   </div>
 
   <div class="main">
-    <div class="main-inner">
-      <div id="imagePrompt">
-        <img id="roomImage" src="" alt="Bild wird geladen..." />
-      </div>
-      <div id="messages"></div>
-      <form id="form">
-        <input id="input" autocomplete="off" placeholder="Nachricht schreiben..." />
-        <button>Yappen</button>
-      </form>
-      <div class="info">Nächster Shuffle in <span id="countdown">--:--</span> Minuten</div>
+    <div id="imagePrompt">
+      <img id="roomImage" src="" alt="Bild wird geladen..." />
     </div>
+    <div id="messages"></div>
+    <form id="form">
+      <input id="input" autocomplete="off" placeholder="Nachricht schreiben..." />
+      <button>Yappen</button>
+    </form>
+    <div class="info">Nächster Shuffle in <span id="countdown">--:--</span> Minuten</div>
   </div>
 
   <div class="video-column">
