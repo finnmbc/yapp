@@ -37,7 +37,7 @@ function createRoom() {
     id: 'room_' + Math.random().toString(36).substr(2, 9),
     users: [],
     imageSeed: seed,
-    imageUrl: https://picsum.photos/seed/${seed}/800/450,
+    imageUrl: `https://picsum.photos/seed/${seed}/800/450`,
     imageStart: now,
     shuffleAt
   };
